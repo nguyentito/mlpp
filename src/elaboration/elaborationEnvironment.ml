@@ -21,14 +21,16 @@ type t = {
 type t = {
   values       : mltypescheme NMap.t;
   types        : (Types.kind * type_definition) TMap.t;
-  classes      : class_definition TMap.t;
   labels       : (tnames * Types.t * tname) LMap.t;
+  classes      : class_definition TMap.t;
+  instances    : instance_definition list
 }
 
 let empty = { values  = NMap.empty;
               types   = TMap.empty;
               classes = TMap.empty;
-              labels  = LMap.empty }
+              labels  = LMap.empty;
+              instances = [] }
 
 (* TODO: modify values and lookup + occurrences in ElaborateDictionaries
    for now, we have something which maintains compatibility
@@ -112,4 +114,12 @@ let initial =
     (TName "char", KStar);
     (TName "unit", KStar)
   ]
+
+let bind_instance inst env =
+  (* TODO: check for overlapping instances *)
+  let pos = inst.instance_position in
+  begin
+    if false then raise (OverlappingInstances (pos, inst.instance_index))
+  end;
+  { env with instances = inst :: env.instances }
 

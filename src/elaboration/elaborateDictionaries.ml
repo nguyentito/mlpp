@@ -7,6 +7,8 @@ open ElaborationErrors
 open ElaborationExceptions
 open ElaborationEnvironment
 
+module TSet = Set.Make(OrderedTName)
+
 (* reduces syntactic noise *)
 let nowhere = undefined_position
 
@@ -37,8 +39,8 @@ and block env = function
      env)
 
   | BInstanceDefinitions is ->
-    (** Instance definitions are ignored. Student! This is your job! *)
-    ([], env)
+    let (dict_defs, env) = instance_definitions env is in
+    ([BDefinition (BindRecValue (nowhere, dict_defs))], env)
 
 and type_definitions env (TypeDefs (_, tdefs)) =
   let env = List.fold_left env_of_type_definition env tdefs in
@@ -423,7 +425,7 @@ and is_value_form = function
 (************************************************************)
 
 
-(* Elaborate class *)
+(***** Elaborate classes *****)
 
 (* note: type name of new record = type name of class *)
 
@@ -449,7 +451,19 @@ and is_value_form = function
    for even more name clash avoidance?
 *)
 
+(* TODO: find better names for these functions *)
 and class_to_type_name (TName str) = TName ("_" ^ str)
+and class_to_dict_type k a = tyappvar (class_to_type_name k) a
+and class_predicate_to_type (ClassPredicate (k, a)) = class_to_dict_type k a
+(* and class_to_dict_var_name (TName str) = Name ("_" ^ str) *)
+
+(* k = class, g = instance *)
+and instance_to_dict_name (TName k_str) (TName g_str) =
+  Name ("_" ^ k_str ^ "_" ^ g_str)
+
+and tyappvar constructor variable =
+  TyApp (nowhere, constructor, [TyVar (nowhere, variable)])
+
 
 and class_definition env cdef = 
   let tvar = cdef.class_parameter
@@ -480,10 +494,7 @@ and superclass_dictionary_field tvar cname sc_name =
   let (TName inf_str) = cname and (TName sup_str) = sc_name in
   let field_name = LName ("_" ^ sup_str ^ "_" ^ inf_str) in
   (* for instance, _Eq_Ord *)
-  (nowhere, field_name, tyappvar (class_to_type_name sc_name) tvar)
-
-and tyappvar constructor variable =
-  TyApp (nowhere, constructor, [TyVar (nowhere, variable)])
+  (nowhere, field_name, class_to_dict_type sc_name tvar)
 
 and class_member cname tvar env (pos, l, ty) =
   (* TODO: should we reject members with a type where tvar is not free,
@@ -492,7 +503,7 @@ and class_member cname tvar env (pos, l, ty) =
 
   (* generate code for accessor *)
   let nw = nowhere in
-  let dict_type = tyappvar (class_to_type_name cname) tvar in
+  let dict_type = class_to_dict_type cname tvar in
   let accessor_elaborated_type = ntyarrow nw [dict_type] ty
   and accessor_expr = ELambda (nw, (Name "z", dict_type),
                                ERecordAccess (nw, EVar (nw, Name "z", []), l))
@@ -505,4 +516,73 @@ and class_member cname tvar env (pos, l, ty) =
              accessor_expr),
    bind_scheme accessor_name [tvar] [ClassPredicate (cname, tvar)] ty env)
     
+
+(***** Elaborate instances *****)
+
+and instance_definitions env deflist =
+  let big_env = List.fold_left env_of_instance_definition env in
+  Misc.list_foldmap (instance_definition big_env) env deflist
+
+and env_of_instance_definition env inst_def =
+  bind_instance inst_def env
+
+(* big_env: environment where all instances are visible
+   (since consecutive instances are recursively defined)
+   small_env: environment where only previous instances are visible
+   (to avoid ill-founded recursion)
+   see the course notes for more details
+*)
+and instance_definition big_env small_env inst_def =
+  let index = inst_def.instance_index
+  and tvars = inst_def.instance_parameters
+  and cname = inst_def.instance_class_name
+  and pos = inst_def.instance_position in
+
+  (* TODO: maybe check that the same type variable does not occur twice??
+     Is this enforced in the rest of the code? *)
+  let tvar_set = List.fold_left (fun acc tv -> TSet.add tv acc)
+                                TSet.empty tvars in
+
+  let ctx = inst_def.instance_typing_context in
+  check_instance_context pos small_env tvar_set ctx;
+  let constructor_argument_types = List.map class_predicate_to_type ctx in 
+
+  let new_small_env = bind_instance inst_def small_env in
+  let nw = nowhere in
+  let dict_constructor_type =
+    let dict_type =
+      TyApp (nw, class_to_type_name cname,
+             [TyApp (nw, index,
+                     List.map (fun tv -> TyVar (nw, tv)) tvars)]) in
+    ntyarrow nowhere constructor_argument_types dict_type
+  in
+  (* TODO: actually create dictionary
+     also, what the hell is the name field in ERecordCon supposed to be???
+  *)
+  let dict_record = ERecordCon (nw, Name "gloubiboulga", [(* wtf is instantiation? *)],
+                                [(* no record bindings for now, TODO: add them *)]) in
+  (* dict_constructor should be lambda super1 ... supern . dict_record *)
+  let dict_constructor = dict_record in
+  let dict_def = ValueDef (nowhere, tvars, [(* no class predicate *)],
+                           (instance_to_dict_name cname index,
+                            dict_constructor_type),
+                           dict_constructor) in
+  (dict_def, new_small_env)
+
+and check_instance_context pos env tvar_set ctx =
+  (* classes in the context must be defined and the type variables
+     must be bound by "instance forall beta ..." *)
+  List.iter begin fun (ClassPredicate (k, a)) ->
+    if not (TSet.mem a tvar_set)
+    then raise (UnboundTypeVariable (pos, a))
+    else ignore (lookup_class pos k env)
+  end ctx;
+  (* canonicity *)
+  Misc.iter_unordered_pairs begin fun cp1 cp2 ->
+    let (ClassPredicate (k1, a1)) = cp1
+    and (ClassPredicate (k2, a2)) = cp2 in
+    if a1 = a2 then check_unrelated_superclasses pos env k1 k2
+  end ctx
+
+
 

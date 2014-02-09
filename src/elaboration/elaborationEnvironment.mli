@@ -62,3 +62,7 @@ val bind_label : position -> lname -> tnames -> Types.t -> tname -> t -> t
     the record type constructor of the label [l] in [e]. *)
 val lookup_label : position -> lname -> t -> tnames * Types.t * tname
 
+(** [bind_instance pos i e] adds the instance [i] to the environment [e] *)
+val bind_instance : instance_definition -> t -> t
+
+

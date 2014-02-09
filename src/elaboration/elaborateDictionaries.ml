@@ -30,13 +30,11 @@ let register_as_overloaded_name name =
   with
     | Not_found -> Hashtbl.add names_hashtbl name true
 
-(* TODO: handle variable names introduced by patterns and lambdas *)
-
 (* Redefine bind_scheme and bind_simple to register their name.
    This should allow us to handle all bindings (pattern, lambda, let)
    without having to rewrite code.
    Since bind_scheme does not have a position argument,
-   our errors will not provide location info (hence the "nowhere" above). 
+   our errors will not provide location info (hence the "nowhere" above).
 *)
 
 let bind_scheme x ts ps ty env = 
@@ -559,9 +557,12 @@ and superclass_dictionary_field tvar cname sc_name =
   (nowhere, field_name, class_to_dict_type sc_name tvar)
 
 and class_member cname tvar env (pos, l, ty) =
-  (* TODO: should we reject members with a type where tvar is not free,
-     or let that fail during elaboration of expressions? *)
   check_wf_type (bind_type_variable tvar env) KStar ty;
+  begin
+    if not (TSet.mem tvar (type_variable_set ty))
+      (* unreachable constraint / ambiguous type variable *)
+    then raise (InvalidOverloading pos)
+  end;
 
   (* generate code for accessor *)
   let nw = nowhere in

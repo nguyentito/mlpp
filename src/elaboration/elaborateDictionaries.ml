@@ -142,12 +142,15 @@ and check_equivalent_kind pos k1 k2 =
     | _ ->
       raise (IncompatibleKinds (pos, k1, k2))
 
+
+(* Is this function useless?
+   It doesn't seem to be called from anywhere else... *)
 and env_of_bindings env cdefs = List.(
   (function
     | BindValue (_, vs)
     | BindRecValue (_, vs) ->
       fold_left (fun env (ValueDef (_, ts, _, (x, ty), _)) ->
-        bind_scheme x ts [] ty env (* TODO: examine further *)
+        bind_scheme x ts [] ty env (* low priority TODO: examine further *)
       ) env vs
     | ExternalValue (_, ts, (x, ty), _) ->
       bind_scheme x ts [] ty env (* external value = not overloaded *)

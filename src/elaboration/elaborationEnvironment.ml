@@ -9,6 +9,11 @@ module LMap = Map.Make(OrderedLName)
 module NMap = Map.Make(OrderedName)
 module NSet = Set.Make(OrderedName)
 
+module InstanceMap = Map.Make(struct
+  type t = tname * tname (* class name * instance *)
+  let compare = compare
+end)
+
 (*
 type t = {
    values       : (tnames * binding) list;
@@ -23,14 +28,14 @@ type t = {
   types        : (Types.kind * type_definition) TMap.t;
   labels       : (tnames * Types.t * tname) LMap.t;
   classes      : class_definition TMap.t;
-  instances    : instance_definition TMap.t
+  instances    : instance_definition InstanceMap.t
 }
 
 let empty = { values    = NMap.empty;
               types     = TMap.empty;
               classes   = TMap.empty;
               labels    = LMap.empty;
-              instances = TMap.empty }
+              instances = InstanceMap.empty }
 
 (* TODO: modify values and lookup + occurrences in ElaborateDictionaries
    for now, we have something which maintains compatibility
@@ -116,13 +121,13 @@ let initial =
   ]
 
 let bind_instance inst env =
-  let pos = inst.instance_position in
-  let head_constr = inst.instance_index in
+  let pos = inst.instance_position
+  and inst_key = (inst.instance_class_name, inst.instance_index) in
   begin
     (* In this simplified system, checking for overlapping is trivial:
        just compare the head constructor *)
-    if TMap.mem head_constr env.instances
+    if InstanceMap.mem inst_key env.instances
     then raise (OverlappingInstances (pos, inst.instance_index))
   end;
-  { env with instances = TMap.add head_constr inst env.instances }
+  { env with instances = InstanceMap.add inst_key inst env.instances }
 

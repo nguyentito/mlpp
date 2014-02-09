@@ -1,6 +1,0 @@
-2014-02-08:
-	* elaboration/elaborateDictionaries.ml:	started adding class
-	  (elaboration + checking)
-	* elaboration/elaborateEnvironment.ml: extensive changes
-	* common/misc.ml: add iter_unordered_pairs
-	* name.ml: add OrderedType structs (for use with Map/Set)

@@ -23,14 +23,14 @@ type t = {
   types        : (Types.kind * type_definition) TMap.t;
   labels       : (tnames * Types.t * tname) LMap.t;
   classes      : class_definition TMap.t;
-  instances    : instance_definition list
+  instances    : instance_definition TMap.t
 }
 
-let empty = { values  = NMap.empty;
-              types   = TMap.empty;
-              classes = TMap.empty;
-              labels  = LMap.empty;
-              instances = [] }
+let empty = { values    = NMap.empty;
+              types     = TMap.empty;
+              classes   = TMap.empty;
+              labels    = LMap.empty;
+              instances = TMap.empty }
 
 (* TODO: modify values and lookup + occurrences in ElaborateDictionaries
    for now, we have something which maintains compatibility
@@ -116,10 +116,13 @@ let initial =
   ]
 
 let bind_instance inst env =
-  (* TODO: check for overlapping instances *)
   let pos = inst.instance_position in
+  let head_constr = inst.instance_index in
   begin
-    if false then raise (OverlappingInstances (pos, inst.instance_index))
+    (* In this simplified system, checking for overlapping is trivial:
+       just compare the head constructor *)
+    if TMap.mem head_constr env.instances
+    then raise (OverlappingInstances (pos, inst.instance_index))
   end;
-  { env with instances = inst :: env.instances }
+  { env with instances = TMap.add head_constr inst env.instances }
 

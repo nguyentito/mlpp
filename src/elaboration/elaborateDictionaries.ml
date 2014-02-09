@@ -29,7 +29,9 @@ and block env = function
 
   | BClassDefinition c ->
     let (dict_t, accessors, env) = class_definition env c in
-    let dict_type_def = TypeDef (nowhere, KStar, c.class_name, dict_t) in
+    let dict_type_def = TypeDef (nowhere, KStar, 
+                                 (class_to_type_name c.class_name),
+                                 dict_t) in
     ([BTypeDefinitions (TypeDefs (nowhere, [dict_type_def]));
       BDefinition (BindValue (nowhere, accessors))],
      env)
@@ -436,8 +438,18 @@ and is_value_form = function
      alternatively, we could just use dict.field_name...
      current choice: only generate accessors for class members
    - naming! how to avoid name conflicts? do names starting with a
-     capital letter work after compilation to OCaml? etc.
+     capital letter work after compilation to OCaml? actually, no...
 *)
+
+(* Convention: names of dictionary types, and superclass fields, should start
+   with underscores. Main reason: unlike capital letters, _ is a valid leading
+   character for a type name or a label name. Also, we hope to avoid name
+   clashes as long as the user doesn't define types with strange names...
+   Question: should we add leading underscores to dictionary record labels
+   for even more name clash avoidance?
+*)
+
+and class_to_type_name (TName str) = TName ("_" ^ str)
 
 and class_definition env cdef = 
   let tvar = cdef.class_parameter
@@ -465,10 +477,10 @@ and check_unrelated_superclasses pos env k1 k2 =
     raise (TheseTwoClassesMustNotBeInTheSameContext (pos, k1, k2))
 
 and superclass_dictionary_field tvar cname sc_name =
-  (* perhaps change the field name? *)
   let (TName inf_str) = cname and (TName sup_str) = sc_name in
-  let field_name = LName (sup_str ^ inf_str) (* for instance, EqOrd *) in
-  (nowhere, field_name, tyappvar sc_name tvar)
+  let field_name = LName ("_" ^ sup_str ^ "_" ^ inf_str) in
+  (* for instance, _Eq_Ord *)
+  (nowhere, field_name, tyappvar (class_to_type_name sc_name) tvar)
 
 and tyappvar constructor variable =
   TyApp (nowhere, constructor, [TyVar (nowhere, variable)])
@@ -480,7 +492,7 @@ and class_member cname tvar env (pos, l, ty) =
 
   (* generate code for accessor *)
   let nw = nowhere in
-  let dict_type = tyappvar cname tvar in
+  let dict_type = tyappvar (class_to_type_name cname) tvar in
   let accessor_elaborated_type = ntyarrow nw [dict_type] ty
   and accessor_expr = ELambda (nw, (Name "z", dict_type),
                                ERecordAccess (nw, EVar (nw, Name "z", []), l))

@@ -170,3 +170,11 @@ val list_foldmap : ('b -> 'a -> 'c * 'b) -> 'b -> 'a list -> 'c list * 'b
 val are_distinct: 'a list -> 'a option
 
 val all_equal : 'a list -> bool * 'a option
+
+
+(*************)
+
+val iter_unordered_pairs : ('a -> 'a -> unit) -> 'a list -> unit
+
+
+

@@ -370,3 +370,15 @@ let list_foldmap f init l =
       aux (y :: ys, accu) xs
   in
   aux ([], init) l
+
+
+(* Additional utilities coded by the students *)
+
+let rec iter_unordered_pairs f = function
+  | [] -> ()
+  | x::xs -> List.iter (f x) xs;
+             iter_unordered_pairs f xs
+
+
+
+

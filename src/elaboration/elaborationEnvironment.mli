@@ -3,6 +3,7 @@
 open XAST
 open Positions
 open Name
+open Types
 
 (** The type of environments. *)
 type t
@@ -20,9 +21,9 @@ val values : t -> (tnames * binding) list
 (** [lookup pos x env] returns the binding of [x]. *)
 val lookup : position -> name -> t -> (tnames * binding)
 
-(** [bind_scheme n ts ty e] associates the scheme [ts. ty] to
-    the identifier [n] in [e]. *)
-val bind_scheme : name -> tnames -> Types.t -> t -> t
+(** [bind_scheme n ts ps ty e] associates the scheme [forall ts. (ps) => ty]
+    to the identifier [n] in [e]. *)
+val bind_scheme : name -> tnames -> class_predicates -> Types.t -> t -> t
 
 (** [bind_simple n ty e] associates the type [ty] to
     the identifier [n] in [e]. *)
@@ -46,7 +47,7 @@ val bind_type_variable : tname -> t -> t
 val lookup_class : position -> tname -> t -> class_definition
 
 (** [is_superclass pos k1 k2 e] returns [true] if [k2] is a superclass of
-    [k1] in [e]. *)
+    [k1] in [e]. (The inequality is non-strict.) *)
 val is_superclass : position -> tname -> tname -> t -> bool
 
 (** [bind_class c cdef e] associates a class_definition [cdef] to [c] in [e]. *)

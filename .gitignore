@@ -10,6 +10,7 @@
 
 *.mlse
 *.mlr
+*.ko
 test/**/*.ml
 
 src/parsing/pprint-20130324/src/_build

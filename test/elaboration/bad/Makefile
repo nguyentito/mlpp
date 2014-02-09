@@ -14,10 +14,10 @@ $(JOUJOU):
 	@echo OCAMLRUNPARAM=b $(JOUJOU) $(OPTIONS) $<
 	@if OCAMLRUNPARAM=b $(JOUJOU) $(OPTIONS) $<;		\
 	then							\
-	  echo "*** Succeed when should have failed *** $< \n";	\
+	  echo -e "*** Succeed when should have failed *** $< \n";	\
 	  exit 1; 						\
 	else 							\
-	  echo [OK] $< "\n";					\
+	  echo -e [OK] $< "\n";					\
 	  touch $@; 						\
 	fi
 

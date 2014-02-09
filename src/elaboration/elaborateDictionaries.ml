@@ -10,10 +10,31 @@ open ElaborationEnvironment
 (* reduces syntactic noise *)
 let nowhere = undefined_position
 
+(* Using global mutable state to handle namespace segregation
+   between methods and variables *)
 
-let string_of_type ty      = ASTio.(XAST.(to_string pprint_ml_type ty))
+let names_hashtbl : (name, bool) Hashtbl.t = Hashtbl.create 42
+(* true iff overloaded name *)
+
+let register_as_normal_name pos name =
+  try
+    if Hashtbl.find names_hashtbl name
+    then raise (OverloadedSymbolCannotBeBound (pos, name))
+  with
+    | Not_found -> Hashtbl.add names_hashtbl name false
+
+let register_as_overloaded_name pos name =
+  try
+    if not (Hashtbl.find names_hashtbl name)
+    then raise (OverloadedSymbolCannotBeBound (pos, name))
+  with
+    | Not_found -> Hashtbl.add names_hashtbl name true
+
+(* TODO: handle variable names introduced by patterns and lambdas *)
 
 
+
+(* Entry point of the module *)
 let rec program p = handle_error List.(fun () ->
   flatten (fst (Misc.list_foldmap block ElaborationEnvironment.initial p))
 )
@@ -387,15 +408,26 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
     let b = (x, ty) in
     check_equal_types pos xty ty;
 
-    let constrained_tvars = List.map (fun (ClassPredicate (k, a)) -> a) ps
-    and ty_vars = type_variable_set ty in
-    List.iter begin fun tv ->
-      if not (TSet.mem tv ty_vars)
+    (* Checks wrt typeclasses *)
+
+    let ty_vars = type_variable_set ty in
+    List.iter begin fun (ClassPredicate (_, a)) ->
+      if not (TSet.mem a ty_vars)
       (* unreachable constraint!
          TODO: think about adding a specific exception for that *)
       then raise (InvalidOverloading pos)
-    end constrained_tvars;
+    end ps;
     
+    check_correct_context pos env (tset_of_list ts) ps;
+
+    
+    (* is this correct? *)
+    begin
+      if ps = []
+      then register_as_normal_name pos x
+      else register_as_overloaded_name pos x
+    end;
+
     (* TODO: do something sensible when ps <> []
        (expression elaboration) *)
     (ValueDef (pos, ts, [], b, EForall (pos, ts, e)),
@@ -523,6 +555,7 @@ and class_member cname tvar env (pos, l, ty) =
   and accessor_expr = ELambda (nw, (Name "z", dict_type),
                                ERecordAccess (nw, EVar (nw, Name "z", []), l))
   and accessor_name = let (LName str) = l in Name str in
+  register_as_overloaded_name pos accessor_name;
   (* Note: in the elaborated code, => was converted into ->, 
      but the binding added to the environment has the type scheme
      with => *)
@@ -558,7 +591,7 @@ and instance_definition big_env small_env inst_def =
   let tvar_set = tset_of_list tvars in
 
   let ctx = inst_def.instance_typing_context in
-  check_instance_context pos small_env tvar_set ctx;
+  check_correct_context pos small_env tvar_set ctx;
   let constructor_argument_types = List.map class_predicate_to_type ctx in 
 
   let new_small_env = bind_instance inst_def small_env in
@@ -583,9 +616,9 @@ and instance_definition big_env small_env inst_def =
                            dict_constructor) in
   (dict_def, new_small_env)
 
-and check_instance_context pos env tvar_set ctx =
-  (* classes in the context must be defined and the type variables
-     must be bound by "instance forall beta ..." *)
+and check_correct_context pos env tvar_set ctx =
+  (* check that the classes are defined and the type variables
+     are quantified over *)
   List.iter begin fun (ClassPredicate (k, a)) ->
     if not (TSet.mem a tvar_set)
     then raise (UnboundTypeVariable (pos, a))

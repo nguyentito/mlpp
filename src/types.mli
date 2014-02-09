@@ -82,3 +82,16 @@ val equivalent : t -> t -> bool
 (** [substitute s ty] returns [ty] on which the substitution [s]
     has been applied. *)
 val substitute : (tname * t) list -> t -> t
+
+(************************************************)
+
+module TSet : Set.S with type elt = tname
+
+(** [tset_of_list l] converts a list [l] of variables into a set *)
+val tset_of_list : tname list -> TSet.t
+
+(** [type_variable_set t] returns the set of variables which occur in [t],
+    i.e. the leaves of its syntax tree *)
+val type_variable_set : t -> TSet.t
+
+

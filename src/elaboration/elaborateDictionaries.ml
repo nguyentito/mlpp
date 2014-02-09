@@ -7,8 +7,6 @@ open ElaborationErrors
 open ElaborationExceptions
 open ElaborationEnvironment
 
-module TSet = Set.Make(OrderedTName)
-
 (* reduces syntactic noise *)
 let nowhere = undefined_position
 
@@ -376,15 +374,28 @@ and eforall pos ts e =
       raise (InvalidNumberOfTypeAbstraction pos)
 
 
+(***** Modifying this for the project *****)
+
 and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   let env = introduce_type_parameters env ts in
   check_wf_scheme env ts xty;
 
   if is_value_form e then begin
     let e = eforall pos ts e in
+    (* TODO: add class constraints to local typing environment *)
     let e, ty = expression env e in
     let b = (x, ty) in
     check_equal_types pos xty ty;
+
+    let constrained_tvars = List.map (fun (ClassPredicate (k, a)) -> a) ps
+    and ty_vars = type_variable_set ty in
+    List.iter begin fun tv ->
+      if not (TSet.mem tv ty_vars)
+      (* unreachable constraint!
+         TODO: think about adding a specific exception for that *)
+      then raise (InvalidOverloading pos)
+    end constrained_tvars;
+    
     (* TODO: do something sensible when ps <> []
        (expression elaboration) *)
     (ValueDef (pos, ts, [], b, EForall (pos, ts, e)),
@@ -479,6 +490,10 @@ and class_definition env cdef =
                                    super in
 
   (* Handle class members *)
+  (* TODO: prevent 2 members from having the same name
+     also, should we allow shadowing of an overloaded name
+     by another one?
+  *)
   let members = cdef.class_members in
   let (accessors, env) = Misc.list_foldmap (class_member cname tvar)
                                            env members in
@@ -540,8 +555,7 @@ and instance_definition big_env small_env inst_def =
 
   (* TODO: maybe check that the same type variable does not occur twice??
      Is this enforced in the rest of the code? *)
-  let tvar_set = List.fold_left (fun acc tv -> TSet.add tv acc)
-                                TSet.empty tvars in
+  let tvar_set = tset_of_list tvars in
 
   let ctx = inst_def.instance_typing_context in
   check_instance_context pos small_env tvar_set ctx;

@@ -113,3 +113,18 @@ let rec substitute (s : (tname * t) list) = function
 
   | TyApp (pos, t, tys) ->
     TyApp (pos, t, List.map (substitute s) tys)
+
+(*************************************)
+
+module TSet = Set.Make(OrderedTName)
+let tset_of_list l =
+  List.fold_left (fun acc x -> TSet.add x acc) TSet.empty l
+
+(* this implementation is slightly simpler (and more stupid) than
+   a linear-time DFS would be *)
+let rec type_variable_set = function
+  | TyVar (_, tv) -> TSet.singleton tv
+  | TyApp (_, _, args) ->
+    let f acc t = TSet.union acc (type_variable_set t) in
+    List.fold_left f TSet.empty args
+

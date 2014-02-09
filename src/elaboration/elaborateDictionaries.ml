@@ -16,21 +16,41 @@ let nowhere = undefined_position
 let names_hashtbl : (name, bool) Hashtbl.t = Hashtbl.create 42
 (* true iff overloaded name *)
 
-let register_as_normal_name pos name =
+let register_as_normal_name name =
   try
     if Hashtbl.find names_hashtbl name
-    then raise (OverloadedSymbolCannotBeBound (pos, name))
+    then raise (OverloadedSymbolCannotBeBound (nowhere, name))
   with
     | Not_found -> Hashtbl.add names_hashtbl name false
 
-let register_as_overloaded_name pos name =
+let register_as_overloaded_name name =
   try
     if not (Hashtbl.find names_hashtbl name)
-    then raise (OverloadedSymbolCannotBeBound (pos, name))
+    then raise (OverloadedSymbolCannotBeBound (nowhere, name))
   with
     | Not_found -> Hashtbl.add names_hashtbl name true
 
 (* TODO: handle variable names introduced by patterns and lambdas *)
+
+(* Redefine bind_scheme and bind_simple to register their name.
+   This should allow us to handle all bindings (pattern, lambda, let)
+   without having to rewrite code.
+   Since bind_scheme does not have a position argument,
+   our errors will not provide location info (hence the "nowhere" above). 
+*)
+
+let bind_scheme x ts ps ty env = 
+  begin
+    if ps = []
+    then register_as_normal_name x
+    else register_as_overloaded_name x
+  end;
+  bind_scheme x ts ps ty env
+
+let bind_simple x ty env =
+  register_as_normal_name x;
+  bind_simple x ty env
+
 
 
 
@@ -422,11 +442,6 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
 
     
     (* is this correct? *)
-    begin
-      if ps = []
-      then register_as_normal_name pos x
-      else register_as_overloaded_name pos x
-    end;
 
     (* TODO: do something sensible when ps <> []
        (expression elaboration) *)
@@ -555,7 +570,6 @@ and class_member cname tvar env (pos, l, ty) =
   and accessor_expr = ELambda (nw, (Name "z", dict_type),
                                ERecordAccess (nw, EVar (nw, Name "z", []), l))
   and accessor_name = let (LName str) = l in Name str in
-  register_as_overloaded_name pos accessor_name;
   (* Note: in the elaborated code, => was converted into ->, 
      but the binding added to the environment has the type scheme
      with => *)

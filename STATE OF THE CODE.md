@@ -52,7 +52,7 @@ ils sont assez bien documentés.
     mltype`) par exemple, il faut fouiller dans `types.ml`,  dans le
     module ExplicitTyping. 
   * Autre truc : tout est pollué par des infos de localisation, pour
-    des raisons de error reporting.
+    des raisons d'error reporting.
 * `name.ml` : module minuscule qui permet de distinguer les noms de
   variables de noms de types... Les OrderedType sont un ajout perso
   pour pouvoir avoir des Map et Set prenant des noms.

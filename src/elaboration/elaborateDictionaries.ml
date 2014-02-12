@@ -13,7 +13,7 @@ let nowhere = undefined_position
 (* Using global mutable state to handle namespace segregation
    between methods and variables *)
 
-let names_hashtbl : (name, bool) Hashtbl.t = Hashtbl.create 42
+let names_hashtbl : (name, bool) Hashtbl.t = Hashtbl.create 277
 (* true iff overloaded name *)
 
 let register_as_normal_name name =

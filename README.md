@@ -1,5 +1,5 @@
-ML with classes
-===============
+ML++ (aka ML with classes)
+==========================
 
 This is a project for a course in functional programming and type
 systems (MPRI 2-4).

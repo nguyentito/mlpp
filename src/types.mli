@@ -76,6 +76,9 @@ type kind =
     of arity [n]. *)
 val kind_of_arity : int -> kind
 
+(** Inverse of kind_of_arity. This function is only partial **)
+val arity_of_kind : kind -> int
+
 (** [equivalent t1 t2] returns true if [t1] is equivalent to [t2]. *)
 val equivalent : t -> t -> bool
 

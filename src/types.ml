@@ -98,6 +98,13 @@ let rec kind_of_arity = function
   | 0 -> KStar
   | n -> KArrow (KStar, kind_of_arity (pred n))
 
+
+(* FIXME: not sure we'll use it...*)
+let rec arity_of_kind = function
+  | KStar -> 0
+  | KArrow (KStar, k) -> 1 + arity_of_kind k
+  | _ -> assert false (* FIXME: ? *)
+
 let rec equivalent ty1 ty2 =
   match ty1, ty2 with
     | TyVar (_, t), TyVar (_, t') ->

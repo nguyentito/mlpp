@@ -6,6 +6,12 @@
 
    Code
 ------------
+- Why not unify variables representations in instance definition ?
+  (switch instance_parameters to Types.t (TyVar))
+  -> it allows to keep track of variables position, and we almost always use them as a list of
+  TyVar, not as only tnames...
+
+
 - Choose a renaming strategy to avoid naming clashes
   - proposition 1: for every generated object—even the most "unaltered" ones (non-overloaded symbols, for instance)—, use
     a prefix indicating its "sort". E.g., class_dict_, inst_dict, var_, etc
@@ -29,6 +35,7 @@
   - 1 for everybody
   - Complement with 3 for every generated symbol based on multiple source symbols, namely:
     - inst_dict
+    - super-class field
     - anything else?
     (3 is needed, as seen in the following example:
      class A with instance B_C vs class A_B with instance C

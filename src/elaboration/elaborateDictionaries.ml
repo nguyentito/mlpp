@@ -6,6 +6,7 @@ open Positions
 open ElaborationErrors
 open ElaborationExceptions
 open ElaborationEnvironment
+open Operators
 
 (* reduces syntactic noise *)
 let nowhere = undefined_position
@@ -508,17 +509,41 @@ and is_value_form = function
    clashes as long as the user doesn't define types with strange names...
    Question: should we add leading underscores to dictionary record labels
    for even more name clash avoidance?
+
+   => Cf discussion in todo
+
 *)
 
+(* Temp *)
+and dummy_expr = 
+  assert false;
+  EPrimitive (nowhere, PUnit)
+
+
+(***** Naming functions / conventions *****)
+(* TODO: evil clash avoidance *)
+(* TODO: unify their way of operation (parameter form, etc) *)
+(* TODO: find better names (bitch!) *)
+and sconcat = String.concat ""
+and uconcat = String.concat "_"
+and superclass_accessor_type_name (TName supcl) (TName cl) =
+  LName (uconcat ["superclass_field"; supcl; cl])
+and superclass_accessor_name = function 
+  | (TyApp (_, supercl, _)) (* (TName cl) *)  ->
+    superclass_accessor_type_name supercl
+  | _ -> assert false
+and class_to_type_name (TName cl_name) = 
+  TName (uconcat ["class_type"; cl_name]) 
+(* k = class, g = instance *)
+and instance_to_dict_name (TName cl_name) (TName inst_name) =
+  Name (uconcat ["inst_dict"; cl_name; inst_name])
+
+
 (* TODO: find better names for these functions *)
-and class_to_type_name (TName str) = TName ("_" ^ str)
 and class_to_dict_type k a = tyappvar (class_to_type_name k) a
 and class_predicate_to_type (ClassPredicate (k, a)) = class_to_dict_type k a
 (* and class_to_dict_var_name (TName str) = Name ("_" ^ str) *)
 
-(* k = class, g = instance *)
-and instance_to_dict_name (TName k_str) (TName g_str) =
-  Name ("_" ^ k_str ^ "_" ^ g_str)
 
 and tyappvar constructor variable =
   TyApp (nowhere, constructor, [TyVar (nowhere, variable)])
@@ -555,7 +580,7 @@ and check_unrelated_superclasses pos env k1 k2 =
 
 and superclass_dictionary_field tvar cname sc_name =
   let (TName inf_str) = cname and (TName sup_str) = sc_name in
-  let field_name = LName ("_" ^ sup_str ^ "_" ^ inf_str) in
+  let field_name = superclass_accessor_type_name cname sc_name in
   (* for instance, _Eq_Ord *)
   (nowhere, field_name, class_to_dict_type sc_name tvar)
 
@@ -586,7 +611,7 @@ and class_member cname tvar env (pos, l, ty) =
 (***** Elaborate instances *****)
 
 and instance_definitions env deflist =
-  let big_env = List.fold_left env_of_instance_definition env in
+  let big_env = List.fold_left env_of_instance_definition env deflist in
   Misc.list_foldmap (instance_definition big_env) env deflist
 
 and env_of_instance_definition env inst_def =
@@ -602,7 +627,8 @@ and instance_definition big_env small_env inst_def =
   let index = inst_def.instance_index
   and tvars = inst_def.instance_parameters
   and cname = inst_def.instance_class_name
-  and pos = inst_def.instance_position in
+  and pos = inst_def.instance_position 
+  and members = inst_def.instance_members in
 
   (* TODO: maybe check that the same type variable does not occur twice??
      Is this enforced in the rest of the code? *)
@@ -612,6 +638,7 @@ and instance_definition big_env small_env inst_def =
   check_correct_context pos small_env tvar_set ctx;
   let constructor_argument_types = List.map class_predicate_to_type ctx in 
 
+  (* new_small_env = h' + h (in subject) *)
   let new_small_env = bind_instance inst_def small_env in
   let nw = nowhere in
   let dict_constructor_type =
@@ -623,10 +650,36 @@ and instance_definition big_env small_env inst_def =
   in
   (* TODO: actually create dictionary
      also, what the hell is the name field in ERecordCon supposed to be???
+     => The name field is filled with a non significant name by the parser...
   *)
-  let dict_record = ERecordCon (nw, Name "gloubiboulga", [(* wtf is instantiation? *)],
-                                [(* no record bindings for now, TODO: add them *)]) in
-  (* dict_constructor should be lambda super1 ... supern . dict_record *)
+  (* FIXME: we should add the superinstances to the envs *)
+  let small_env_with_free_tvars = TSet.fold bind_type_variable tvar_set small_env in
+  let big_env_with_free_tvars = TSet.fold bind_type_variable tvar_set big_env in
+
+  (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
+  let dict_record = ERecordCon (nw, Name "WTFITS??", 
+				(* Instantiation of the record type *)
+				instantiation Lexing.dummy_pos (* FIXME: wtf?!  *)
+				  $ TypeApplication (List.map (fun x -> TyVar (nw, x)) tvars) 
+				(* CHECK: If G is nullary, then this is the empty list, 
+				   so morally it should work (bitch) *)
+				,
+				(* TODO: check the type returned by record_binding (for class members) *)
+				(* Record content *)
+				List.append
+				  (* Members defined by the current class *)
+				  (* FIXME: we should big_env for functions *)
+				  (* TODO: check type returned by record_binding *)
+				  (List.map (fst =< record_binding small_env_with_free_tvars) members)
+				  (* Superclass accessors *)
+				  (List.map (fun spcl -> RecordBinding
+				    (superclass_accessor_name spcl cname, dummy_expr)) constructor_argument_types)
+
+				  
+  ) in
+
+
+  (* TODO: dict_constructor should be lambda super1 ... supern . dict_record *)
   let dict_constructor = dict_record in
   let dict_def = ValueDef (nowhere, tvars, [(* no class predicate *)],
                            (instance_to_dict_name cname index,

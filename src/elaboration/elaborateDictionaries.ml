@@ -499,16 +499,11 @@ and is_value_form = function
      this is what is prescribed in the course notes
      alternatively, we could just use dict.field_name...
      current choice: only generate accessors for class members
-   - naming! how to avoid name conflicts? do names starting with a
-     capital letter work after compilation to OCaml? actually, no...
+   => No.
 *)
 
-(* Convention: names of dictionary types, and superclass fields, should start
-   with underscores. Main reason: unlike capital letters, _ is a valid leading
-   character for a type name or a label name. Also, we hope to avoid name
-   clashes as long as the user doesn't define types with strange names...
-   Question: should we add leading underscores to dictionary record labels
-   for even more name clash avoidance?
+(* 
+   TODO: put the naming convention here
 
    => Cf discussion in todo
 
@@ -579,7 +574,6 @@ and check_unrelated_superclasses pos env k1 k2 =
     raise (TheseTwoClassesMustNotBeInTheSameContext (pos, k1, k2))
 
 and superclass_dictionary_field tvar cname sc_name =
-  let (TName inf_str) = cname and (TName sup_str) = sc_name in
   let field_name = superclass_accessor_type_name cname sc_name in
   (* for instance, _Eq_Ord *)
   (nowhere, field_name, class_to_dict_type sc_name tvar)
@@ -653,8 +647,20 @@ and instance_definition big_env small_env inst_def =
      => The name field is filled with a non significant name by the parser...
   *)
   (* FIXME: we should add the superinstances to the envs *)
-  let small_env_with_free_tvars = TSet.fold bind_type_variable tvar_set small_env in
-  let big_env_with_free_tvars = TSet.fold bind_type_variable tvar_set big_env in
+  (* TODO: description *)
+  let env_with_free_tvars x =
+    TSet.fold bind_type_variable tvar_set 
+      $
+      match destruct_ntyarrow x with
+      | ([], _) ->  small_env
+      | _ -> big_env
+  in
+
+  (* Pairs (member, type) *) (* TODO! *)
+  let augmented_members = (assert false : (record_binding * mltype) list)
+  in
+
+  (* TODO: check that every class member is defined, exactly once *)
 
   (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
   let dict_record = ERecordCon (nw, Name "WTFITS??", 
@@ -665,12 +671,14 @@ and instance_definition big_env small_env inst_def =
 				   so morally it should work (bitch) *)
 				,
 				(* TODO: check the type returned by record_binding (for class members) *)
+				(* -> check_equal_types *)
 				(* Record content *)
 				List.append
 				  (* Members defined by the current class *)
-				  (* FIXME: we should big_env for functions *)
-				  (* TODO: check type returned by record_binding *)
-				  (List.map (fst =< record_binding small_env_with_free_tvars) members)
+				  (* TODO: check type returned by record_binding (remove the "fst") *)
+				  (List.map (fst =< 
+				      (fun (x,t) -> record_binding (env_with_free_tvars t) x))
+				     augmented_members)
 				  (* Superclass accessors *)
 				  (List.map (fun spcl -> RecordBinding
 				    (superclass_accessor_name spcl cname, dummy_expr)) constructor_argument_types)
@@ -680,6 +688,7 @@ and instance_definition big_env small_env inst_def =
 
 
   (* TODO: dict_constructor should be lambda super1 ... supern . dict_record *)
+  (* => ELambda + add a naming convention for dictionary variables *)
   let dict_constructor = dict_record in
   let dict_def = ValueDef (nowhere, tvars, [(* no class predicate *)],
                            (instance_to_dict_name cname index,

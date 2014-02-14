@@ -10,7 +10,7 @@
   (switch instance_parameters to Types.t (TyVar))
   -> it allows to keep track of variables position, and we almost always use them as a list of
   TyVar, not as only tnames...
-
+  => use polymorphic variants instead
 
 - Choose a renaming strategy to avoid naming clashes
   - proposition 1: for every generated object—even the most "unaltered" ones (non-overloaded symbols, for instance)—, use

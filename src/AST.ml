@@ -28,7 +28,7 @@ module Make (P : Types.TypingSyntax) = struct
     instance_typing_context : class_predicate list;
     instance_class_name     : tname;
     instance_index          : tname;
-    instance_members        : record_binding list;
+    instance_members        : record_binding list; (* TODO: this should be a set *)
   }
 
   and value_binding =
@@ -59,7 +59,7 @@ module Make (P : Types.TypingSyntax) = struct
 
     (** Records. *)
     | ERecordAccess of position * expression * lname
-    | ERecordCon of position * name * instantiation * record_binding list
+    | ERecordCon of position * name * instantiation * record_binding list  (* TODO: this should be a set *)
 
   (** Constant. *)
   and primitive =

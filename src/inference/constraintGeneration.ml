@@ -571,36 +571,36 @@ let infer_class tenv tc =
 
 let infer_instance tenv ti =
   let k = ti.instance_class_name
-  and g = ti.instance_index in
+  and g = ti.instance_index
+  and pos = ti.instance_position in
   let class_info = lookup_class tenv k in
-(*  
-  let (vs, ltys) = fresh_methods_of_class pos tenv k in
+
+  (* TODO: is there more to do, like enriching the context
+     with lets, for instance? *)
+  (* Refer to ERecordCon *)
+  (* let h = StringMap.add k (t, pos) StringMap.empty in *)
+  (* CLet ([ monoscheme h ], (SName k <? t) pos) *)
+
+  let (v, ltys) = fresh_methods_of_class pos tenv k in
+
+  (* As it is now, this is a carbon copy of infer_label *)
+  let infer_method (RecordBinding (l, exp), t) =
+    try
+      ((List.assoc l ltys) =?= t) pos ^ infer_expr tenv exp t
+    with Not_found ->
+      (* TODO: add specific exception? or is this enough? *)
+      raise (IncompatibleLabel (pos, l))
+  in
+
   let instance_ok_constraint = 
-    ex vs (CConjunction (List.map foobar ti.instance_members))
+    exists_list ti.instance_members begin fun xs ->
+      ex [v] (CConjunction (List.map infer_method xs))
+    end
+  in
 
-    (* | ERecordCon (pos, Name k, i, bindings) -> *)
-      let ci =
-        match i with
-          | None -> CTrue pos
-          | Some ty -> (intern pos tenv ty =?= t) pos
-      in
-      (* let h = StringMap.add k (t, pos) StringMap.empty in *)
-      (* CLet ([ monoscheme h ], (SName k <? t) pos) *)
-      ^ exists_list bindings
-        (fun xs ->
-          List.(
-            let ls = map extract_label_from_binding bindings in
-            let (vs, (rty, ltys)) = fresh_product_of_label pos tenv (hd ls) in
-            ex vs (
-              ci ^ (t =?= rty) pos
-              ^ CConjunction (map (infer_label pos tenv ltys) xs)
-            )
-          )
-        )
-
-  (tenv, fun c -> add this fucking constraint_ here)
-*)
-  (tenv, fun c -> c)
+  let tenv = add_instance pos tenv k g () in
+  
+  (tenv, fun c -> instance_ok_constraint ^ c)
 
 (** [infer e] determines whether the expression [e] is well-typed
     in the empty environment. *)

@@ -47,7 +47,9 @@ let entails c1 c2 = (* C1 ||- C2 *)
   let visited = Hashtbl.mem visited_table
   and mark x = Hashtbl.add visited_table x () in
 
-  let rec traversals = List.map traversal
+  (* we have to eta-expand to convince the typechecker
+     [traversals] is a value *)
+  let rec traversals ps = List.iter traversal ps
   and traversal p = if not (visited p) then begin
     mark p;
     traversals (retrieve_E'_expansion p)

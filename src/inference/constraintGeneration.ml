@@ -547,6 +547,9 @@ and infer_label pos tenv ltys (RecordBinding (l, exp), t) =
     raise (IncompatibleLabel (pos, l))
 
 
+(* TODO: ensure contexts are valid
+   i.e. superclasses are defined *)
+
 let infer_class tenv tc =
   let pos = tc.class_position
   and k = tc.class_name
@@ -570,7 +573,7 @@ let infer_class tenv tc =
   
   let method_scheme (l, t) =
     Scheme (pos, [rq], [], (* closed term -> no existential var *)
-            (k, rq), (* K 'a => ..*)
+            [(k, rq)], (* K 'a => ..*)
             CTrue pos,
             StringMap.empty)
   in

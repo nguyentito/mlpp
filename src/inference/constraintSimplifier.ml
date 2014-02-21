@@ -2,26 +2,12 @@ open InferenceTypes
 open MultiEquation
 open Name
 
-
-
 (** [Unsat] is raised if a canonical constraint C ≡ false. *)
 exception Unsat
 
-(** [OverlappingInstances] is raised if two rules of kind (E) overlap. *)
-exception OverlappingInstances of tname * variable
-
-(** [MultipleClassDefinitions k] is raised if two rules of kind (I)
-    share the same goal. *)
-exception MultipleClassDefinitions of tname
-
-(** [UnboundClass k] is raised if the type class [k] occurs in a
-    constraint while it is undefined. *)
-exception UnboundClass of tname
-
-(** Student! This is your job! You must implement the following functions: *)
-
-(* TODO: think about what rules of kind (I) are, and where
-   MultipleClassDefinitions should be raised *)
+(* There were some exceptions declared below,
+   but they're useless if the constraint generator does 
+   its job correctly. *)
 
 (* TODO: eliminate global variable by passing it as an argument *)
 
@@ -35,31 +21,44 @@ type class_relations = {
 let big_global_table = { equivalences = Env.empty;
                          implications = Env.empty }
 
-(** [equivalent [b1;..;bN] k t [(k_1,t_1);...;(k_N,t_N)]] registers
-    a rule of the form (E). *)
+let retrieve_E'_expansion (k, a) =
+  try
+    List.map (fun k' -> (k',a)) (Env.lookup big_global_table.implications k)
+  with
+    | Not_found -> []
+
 let equivalent beta k g predicates =
   big_global_table.equivalences <-
     Env.add big_global_table.equivalences (k, g) (beta, predicates)
   
 
-(** [canonicalize pos pool c] where [c = [(k_1,t_1);...;(k_N,t_N)]]
-    decomposes [c] into an equivalent constraint [c' =
-    [(k'_1,v_1);...;(k'_M,v_M)]], introducing the variables
-    [v_1;...;v_M] in [pool]. It raises [Unsat] if the given constraint
-    is equivalent to [false]. *)
 let canonicalize pos pool c = assert false
+  
 
-(** [add_implication k [k_1;...;k_N]] registers a rule of the form
-    (E'). *)
 let add_implication k ks =
   big_global_table.implications <-
     Env.add big_global_table.implications k ks
 
 
-(** [entails C1 C2] returns true is the canonical constraint [C1] implies
-    the canonical constraint [C2]. *)
-let entails _ _ = true
+let entails c1 c2 = (* C1 ||- C2 *)
+  (* let's do a graph traversal of the entire hierarchy above our constraint! *)
 
-(** [contains k1 k2] *)
-let contains _ _ = true
+  let visited_table = Hashtbl.create 42 in
+  let visited = Hashtbl.mem visited_table
+  and mark x = Hashtbl.add visited_table x () in
+
+  let rec traversals = List.map traversal
+  and traversal p = if not (visited p) then begin
+    mark p;
+    traversals (retrieve_E'_expansion p)
+  end in
+  
+  traversals c1;
+  List.for_all (fun p -> visited p) c2
+
+
+let contains k1 k2 = (* k1 >= k2 *)
+  let v = variable Rigid () in
+  entails [(k1, v)] [(k2, v)]
+  
 

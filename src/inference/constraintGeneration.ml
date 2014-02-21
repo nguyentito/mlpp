@@ -562,11 +562,21 @@ let infer_class tenv tc =
   let intern_method_type (pos, l, ty) =
     (l, InternalizeTypes.intern pos tenv' ty)
   in
-  let class_info = ClassInfo (tc.superclasses, rq,
-                              List.map intern_method_type tc.class_members) in
+  let methods = List.map intern_method_type tc.class_members in
+  let class_info = ClassInfo (tc.superclasses, rq, methods) in
   let tenv = add_class pos tenv k class_info in
-  (* I think we don't add any constraint to the context, right? *)
-  (tenv, fun c -> c)
+  (* I think we don't add any constraint to the context,
+     only let-binding with principal solved schemes, right? *)
+  
+  let method_scheme (l, t) =
+    Scheme (pos, [rq], [], (* closed term -> no existential var *)
+            (k, rq), (* K 'a => ..*)
+            CTrue pos,
+            StringMap.empty)
+  in
+  let schemes = List.map method_scheme methods in
+
+  (tenv, fun c -> CLet (schemes, c))
 
 
 let infer_instance tenv ti =

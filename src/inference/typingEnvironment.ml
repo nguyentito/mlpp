@@ -73,17 +73,25 @@ let as_type_variable (_, v, _) =
    - its type. *)
 type data_constructor = int * variable list * crterm
 
+(* superclasses, variable, members *)
+type class_info = ClassInfo of tname list * variable * (lname * crterm) list
+type instance_info = unit
+
 (** [environment] denotes typing information associated to identifiers. *)
 type environment =
     {
       type_info        : (tname, type_info) Env.t;
       data_constructor : (dname, data_constructor) Env.t;
+      class_info       : (tname, class_info) Env.t;
+      instance_info    : (tname * tname, instance_info) Env.t;
     }
 
 let empty_environment =
   {
     type_info        = Env.empty;
     data_constructor = Env.empty;
+    class_info       = Env.empty;
+    instance_info    = Env.empty;
   }
 
 let union_type_variables env1 env2 =
@@ -281,3 +289,42 @@ let fresh_product_of_label pos env l =
     )
   with Not_found ->
     raise (UnboundLabel (pos, l))
+
+
+(***************************************************)
+
+let add_class pos env k x =
+  try
+    ignore (Env.lookup env.class_info k);
+    raise (MultipleClassDefinitions (pos, k))
+  with Not_found ->
+    { env with class_info = Env.add env.class_info k x }
+
+let add_instance pos env k g x =
+  try
+    (* TODO: put the variable corresponding to g in variabloop *)
+    let variabloop = variable Constant () in
+    ignore (Env.lookup env.instance_info (k, g));
+    raise (OverlappingInstances (pos, k, variabloop))
+  with Not_found ->
+    { env with instance_info = Env.add env.instance_info (k, g) x }
+
+let lookup_class ?pos env k =
+  try
+    Env.lookup env.class_info k
+  with Not_found ->
+    raise (UnboundClass ((pos_or_undef pos), k))
+
+(* do we really need this function? *)
+let lookup_instance ?pos env k g = assert false
+
+let fresh_methods_of_class pos env k =
+  try
+    let ClassInfo (_, v, ltys) = Env.lookup env.class_info k in
+    let [v_fresh], ltys_fresh = fresh_types [v] (fun f ->
+      List.map (fun (l, ty) -> (l, f ty)) ltys
+    ) in
+    (v_fresh, ltys_fresh)
+  with Not_found ->
+    raise (UnboundClass (pos, k))
+

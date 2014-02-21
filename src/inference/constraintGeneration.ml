@@ -214,6 +214,7 @@ let infer_typedef tenv (TypeDefs (pos, tds)) =
     let ikind = KindInferencer.intern_kind (as_kind_env tenv) kind
     and ids_def = ref Abstract
     and ivar = variable ~name:name Constant () in
+    (* TODO: decide whether this is as useless as it looks like *)
     let c = fun c' ->
       CLet ([Scheme (pos, [ivar], [], [], c', StringMap.empty)],
             CTrue pos)
@@ -547,12 +548,58 @@ and infer_label pos tenv ltys (RecordBinding (l, exp), t) =
 
 
 let infer_class tenv tc =
-  (* Student! This is your job! *)
+  let pos = tc.class_position
+  and k = tc.class_name
+  and tvar = tc.class_parameter in
+
+  (* We suppose that the existence of a class is not visible
+     when checking the well-formedness of the types of its members,
+     which makes sense since they are monomorphic.
+     TODO: check consistency with other design decisions *)
+
+  let [rq], rtenv = fresh_unnamed_rigid_vars pos tenv [tvar] in
+  let tenv' = add_type_variables rtenv tenv in
+  let intern_method_type (pos, l, ty) =
+    (l, InternalizeTypes.intern pos tenv' ty)
+  in
+  let class_info = ClassInfo (tc.superclasses, rq,
+                              List.map intern_method_type tc.class_members) in
+  let tenv = add_class pos tenv k class_info in
+  (* I think we don't add any constraint to the context, right? *)
   (tenv, fun c -> c)
 
 
 let infer_instance tenv ti =
-  (* Student! This is your job! *)
+  let k = ti.instance_class_name
+  and g = ti.instance_index in
+  let class_info = lookup_class tenv k in
+(*  
+  let (vs, ltys) = fresh_methods_of_class pos tenv k in
+  let instance_ok_constraint = 
+    ex vs (CConjunction (List.map foobar ti.instance_members))
+
+    (* | ERecordCon (pos, Name k, i, bindings) -> *)
+      let ci =
+        match i with
+          | None -> CTrue pos
+          | Some ty -> (intern pos tenv ty =?= t) pos
+      in
+      (* let h = StringMap.add k (t, pos) StringMap.empty in *)
+      (* CLet ([ monoscheme h ], (SName k <? t) pos) *)
+      ^ exists_list bindings
+        (fun xs ->
+          List.(
+            let ls = map extract_label_from_binding bindings in
+            let (vs, (rty, ltys)) = fresh_product_of_label pos tenv (hd ls) in
+            ex vs (
+              ci ^ (t =?= rty) pos
+              ^ CConjunction (map (infer_label pos tenv ltys) xs)
+            )
+          )
+        )
+
+  (tenv, fun c -> add this fucking constraint_ here)
+*)
   (tenv, fun c -> c)
 
 (** [infer e] determines whether the expression [e] is well-typed

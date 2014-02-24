@@ -21,23 +21,28 @@ type class_relations = {
 let big_global_table = { equivalences = Env.empty;
                          implications = Env.empty }
 
-let e'_expand (k, a) =
-  try
-    List.map (fun k' -> (k',a)) (Env.lookup big_global_table.implications k)
-  with
-    | Not_found -> []
+(* Destructuring functions which perhaps should not live here... *)
+
+let rec head_constructor v =
+  (* Is this right??????? Who knows! *)
+  let desc = UnionFind.find v in
+  match desc.structure, desc.name with
+    | None, Some tname when desc.kind = Constant -> Some tname
+    | Some (Var v), _ -> head_constructor v
+    | Some (App (v,_)), _ -> let (Some tname) = variable_name v in Some tname
+    | _ -> None
 
 (* E-expansion turns a predicate constraint over a type into
    constraints on subtypes, returning None if no expansion is possible *)
 (* TODO: what to do about the exceptions potentially raised
-   by type_of_variable and unify? Upfront checks should prevent them... *)
+   by unify? Upfront checks should prevent them... *)
 (* This code is pure superstition. It is a cargo cult ritual meant
    to make magic happen by imitation of existing working code. *)
 let e_expand pos pool (k, v) =
   let open Types in
-  match ExternalizeTypes.type_of_variable pos v with
-  | TyVar _ -> None (* K 'a : irreducible constraint *)
-  | TyApp (_, g, _) ->
+  match head_constructor v with
+  | None -> None (* K 'a : irreducible constraint *)
+  | Some g ->
     try
       let term, vars, expansion =
         Env.lookup big_global_table.equivalences (k, g) in
@@ -56,6 +61,13 @@ let e_expand pos pool (k, v) =
       Some (fresh_expansion)
     with
       | Not_found -> raise Unsat
+
+let e'_expand (k, a) =
+  try
+    List.map (fun k' -> (k',a)) (Env.lookup big_global_table.implications k)
+  with
+    | Not_found -> []
+
 
 let equivalent beta k g gb predicates =
   big_global_table.equivalences <-

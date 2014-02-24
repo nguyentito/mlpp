@@ -128,37 +128,3 @@ let setup_class_rules env =
   List.iter setup_class (class_listing env);
   List.iter setup_instance (instance_listing env)
 
-
-(* Originally from externalizeTypes.ml *)
-let canonicalize_class_predicates ts cps =
-  let open Types in
-  let cps =
-    List.filter (fun (ClassPredicate (_, t)) ->
-      List.mem t ts
-    ) cps
-  in
-  let cps = List.sort (fun (ClassPredicate (k1, _)) (ClassPredicate (k2, _)) ->
-    Pervasives.compare k1 k2
-  ) cps
-  in
-  let rec aux last = function
-    | [] -> []
-    | x :: xs ->
-      match last, x with
-        | Some (ClassPredicate (k, v1)), (ClassPredicate (k', v2)) ->
-          if k = k' && v1 = v2 then
-            aux last xs
-          else
-            (ClassPredicate (k', v2)) :: aux (Some x) xs
-        | None, x ->
-          x :: aux (Some x) xs
-  in
-  let remove_redundancy cs =
-    let subsum (ClassPredicate (k1, v1)) (ClassPredicate (k2, v2)) =
-      v1 = v2 && contains k1 k2 && k1 <> k2
-    in
-    List.(filter (fun c -> not (exists (subsum c) cs)) cs)
-  in
-  remove_redundancy (aux None cps)
-
-

@@ -302,8 +302,8 @@ let solve env pool c =
         rtrue
 
       | CPredicate (pos, k, ty) ->
-        rtrue
-        (* student! this is your job *)
+        let t = chop pool ty in
+        ConstraintSimplifier.canonicalize pos pool [(k,t)]
 
       | CEquation (pos, term1, term2) ->
         let t1, t2 = twice (chop pool) term1 term2 in

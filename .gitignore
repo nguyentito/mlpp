@@ -9,9 +9,11 @@
 *.cmxa
 
 *.mlse
+*.mls
 *.mlr
 *.ko
 test/**/*.ml
+test/inference/**/*.mle
 
 src/parsing/pprint-20130324/src/_build
 src/_build

@@ -44,8 +44,3 @@ val contains
 
 val setup_class_rules : TypingEnvironment.environment -> unit
 
-(** [canonicalize_class_predicates ts cps] *)
-(* TODO: description *)
-val canonicalize_class_predicates
-  : tname list -> Types.class_predicates -> Types.class_predicates
-

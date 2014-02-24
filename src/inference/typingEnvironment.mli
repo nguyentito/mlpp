@@ -41,9 +41,11 @@ and datatype_info =
   | Sum     of (dname * variable) list
   | Product of variable list * crterm * (lname * crterm) list
 
-(* TODO: decide later what will be important for classes *)
+(* superclasses, parameter, bindings *)
 type class_info = ClassInfo of tname list * variable * (lname * crterm) list
-type instance_info = unit
+(* parameters, context, internal representation *)
+type instance_info =
+    InstanceInfo of variable list * Constraint.tclass_constraint * crterm
 
 (** Each data constructor is assigned an ML scheme. *)
 type data_constructor = int * variable list * crterm
@@ -157,4 +159,8 @@ val lookup_instance : ?pos:Positions.position
     of the class named [k], instantiated with a fresh type parameter. *)
 val fresh_methods_of_class : position -> environment -> tname
   -> variable * (lname * crterm) list
+
+val class_listing : environment -> (tname * class_info) list
+
+val instance_listing : environment -> ((tname * tname) * instance_info) list
 

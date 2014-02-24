@@ -547,14 +547,15 @@ and infer_label pos tenv ltys (RecordBinding (l, exp), t) =
     raise (IncompatibleLabel (pos, l))
 
 
-(* TODO: ensure contexts are valid
-   i.e. superclasses are defined *)
-
 let infer_class tenv tc =
   let pos = tc.class_position
   and k = tc.class_name
-  and tvar = tc.class_parameter in
+  and tvar = tc.class_parameter
+  and super = tc.superclasses in
 
+  (* Check superclasses exist *)
+  List.iter (fun k' -> ignore (lookup_class ~pos:pos tenv k')) super;
+  
   (* We suppose that the existence of a class is not visible
      when checking the well-formedness of the types of its members,
      which makes sense since they are monomorphic.
@@ -566,7 +567,7 @@ let infer_class tenv tc =
     (l, InternalizeTypes.intern pos tenv' ty)
   in
   let methods = List.map intern_method_type tc.class_members in
-  let class_info = ClassInfo (tc.superclasses, rq, methods) in
+  let class_info = ClassInfo (super, rq, methods) in
   let tenv = add_class pos tenv k class_info in
   (* I think we don't add any constraint to the context,
      only let-binding with principal solved schemes, right? *)
@@ -585,8 +586,30 @@ let infer_class tenv tc =
 let infer_instance tenv ti =
   let k = ti.instance_class_name
   and g = ti.instance_index
-  and pos = ti.instance_position in
+  and pos = ti.instance_position
+  and tvars = ti.instance_parameters in
   let class_info = lookup_class tenv k in
+
+  let vs, tvars_assoc = variable_list Rigid tvars in
+  let typing_context = List.map begin fun (k', a) ->
+    (* Check the instance's typing context
+       + return constraint with internal var *)
+    ignore (lookup_class ~pos:pos tenv k');
+    try
+      let (TVariable v) = List.assoc a tvars_assoc in
+      (k', v)
+    with
+      | Not_found -> raise (UnboundTypeVariable (pos, a))
+  end ti.instance_typing_context in
+  
+  (* the code below also check that the type constructor
+     exists and has the right arity (I think?) *)
+  let term = InternalizeTypes.tycon tenv g vs in
+  
+  let tenv =
+    let info = InstanceInfo (vs, typing_context, k, term) in
+    (* includes overlapping instance check *)
+    add_instance pos tenv k g info in
 
   (* TODO: is there more to do, like enriching the context
      with lets, for instance? *)
@@ -611,8 +634,6 @@ let infer_instance tenv ti =
     end
   in
 
-  let tenv = add_instance pos tenv k g () in
-  
   (tenv, fun c -> instance_ok_constraint ^ c)
 
 (** [infer e] determines whether the expression [e] is well-typed
@@ -627,7 +648,7 @@ let bind env b =
 
 let rec infer_program env p =
   let (env, ctx) = fold env block p in
-  ctx (CDump undefined_position)
+  env, ctx (CDump undefined_position)
 
 and block env = function
   | BClassDefinition ct -> infer_class env ct
@@ -686,4 +707,5 @@ let init_env () =
 
 let generate_constraint b =
   let (ctx, vs, env) = init_env () in
-  (ctx (infer_program env b))
+  let env, c = infer_program env b in
+  env, ctx (infer_program env b)

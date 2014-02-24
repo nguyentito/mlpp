@@ -73,9 +73,9 @@ let as_type_variable (_, v, _) =
    - its type. *)
 type data_constructor = int * variable list * crterm
 
-(* superclasses, variable, members *)
 type class_info = ClassInfo of tname list * variable * (lname * crterm) list
-type instance_info = unit
+type instance_info =  
+    InstanceInfo of variable list * Constraint.tclass_constraint * crterm
 
 (** [environment] denotes typing information associated to identifiers. *)
 type environment =
@@ -319,12 +319,20 @@ let lookup_class ?pos env k =
 let lookup_instance ?pos env k g = assert false
 
 let fresh_methods_of_class pos env k =
-  try
-    let ClassInfo (_, v, ltys) = Env.lookup env.class_info k in
-    let [v_fresh], ltys_fresh = fresh_types [v] (fun f ->
-      List.map (fun (l, ty) -> (l, f ty)) ltys
-    ) in
-    (v_fresh, ltys_fresh)
-  with Not_found ->
-    raise (UnboundClass (pos, k))
+  let ClassInfo (_, v, ltys) = lookup_class ~pos:pos env k in
+  let [v_fresh], ltys_fresh = fresh_types [v] (fun f ->
+    List.map (fun (l, ty) -> (l, f ty)) ltys
+  ) in
+  (v_fresh, ltys_fresh)
+
+let class_listing env =
+  (* we don't want to break an abstraction barrier with the Env module,
+     hence the convoluted way of returning an associative list
+     when we already have one *)
+  Env.fold_left (fun acc pair -> pair :: acc) [] env.class_info
+
+let instance_listing env =
+  Env.fold_left (fun acc pair -> pair :: acc) [] env.instance_info
+
+
 

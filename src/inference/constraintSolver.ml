@@ -302,8 +302,8 @@ let solve env pool c =
         rtrue
 
       | CPredicate (pos, k, ty) ->
-        (* Student! This is your job! *)
         rtrue
+        (* student! this is your job *)
 
       | CEquation (pos, term1, term2) ->
         let t1, t2 = twice (chop pool) term1 term2 in
@@ -311,6 +311,9 @@ let solve env pool c =
         rtrue
 
       | CConjunction cl ->
+        (* TODO: should we modify this?
+           as of now, rconj is List.flatten, which does not
+           eliminate duplicates... *)
         rconj (List.map (solve env pool given_c) cl)
 
       | CLet ([ Scheme (_, [], fqs, [], c, _) ], CTrue _) ->

@@ -11,28 +11,69 @@ exception Unsat
 
 (* TODO: eliminate global variable by passing it as an argument *)
 
+type equivalence_spec = crterm * variable list * (tname * variable) list
+
 type class_relations = { 
-  mutable equivalences :
-    ((tname * variable), (variable list * (tname * variable) list)) Env.t;
-  mutable implications :
-    (tname, tname list) Env.t
+  mutable equivalences : (tname * tname, equivalence_spec) Env.t;
+  mutable implications : (tname, tname list) Env.t
 }
 
 let big_global_table = { equivalences = Env.empty;
                          implications = Env.empty }
 
-let retrieve_E'_expansion (k, a) =
+let e'_expand (k, a) =
   try
     List.map (fun k' -> (k',a)) (Env.lookup big_global_table.implications k)
   with
     | Not_found -> []
 
-let equivalent beta k g predicates =
+(* E-expansion turns a predicate constraint over a type into
+   constraints on subtypes, returning None if no expansion is possible *)
+(* TODO: what to do about the exceptions potentially raised
+   by type_of_variable and unify? Upfront checks should prevent them... *)
+(* This code is pure superstition. It is a cargo cult ritual meant
+   to make magic happen by imitation of existing working code. *)
+let e_expand pos pool (k, v) =
+  let open Types in
+  match ExternalizeTypes.type_of_variable pos v with
+  | TyVar _ -> None (* K 'a : irreducible constraint *)
+  | TyApp (_, g, _) ->
+    try
+      let term, vars, expansion =
+        Env.lookup big_global_table.equivalences (k, g) in
+
+      let fresh_vars = List.map (fun _ -> variable Flexible ()) vars in
+      let fresh_assoc = List.combine vars fresh_vars in
+      
+      let fresh_term = change_arterm_vars fresh_assoc term 
+      and fresh_expansion =
+        List.map (fun (k', a) -> (k', List.assoc a fresh_assoc)) expansion in
+
+      List.iter (register pool) fresh_vars;
+      let t = chop pool fresh_term in
+      Unifier.unify pos (register pool) v t;
+
+      Some (fresh_expansion)
+    with
+      | Not_found -> raise Unsat
+
+let equivalent beta k g gb predicates =
   big_global_table.equivalences <-
-    Env.add big_global_table.equivalences (k, g) (beta, predicates)
+    Env.add big_global_table.equivalences
+    (k, g) (gb, beta, predicates)
   
 
-let canonicalize pos pool c = assert false
+let canonicalize pos pool c =
+  (* We let the type externalization handle redundancy removal,
+     and just expand the constraint until we reach sth unsatisfiable *)
+  let rec loop ps =
+    List.concat (List.map (fun p -> f p (e_expand pos pool p)) ps)
+  and f p = function
+    | None    -> [p]
+    | Some [] -> []
+    | Some expansion -> loop expansion
+  in
+  loop c
   
 
 let add_implication k ks =
@@ -52,7 +93,7 @@ let entails c1 c2 = (* C1 ||- C2 *)
   let rec traversals ps = List.iter traversal ps
   and traversal p = if not (visited p) then begin
     mark p;
-    traversals (retrieve_E'_expansion p)
+    traversals (e'_expand p)
   end in
   
   traversals c1;
@@ -63,4 +104,49 @@ let contains k1 k2 = (* k1 >= k2 *)
   let v = variable Rigid () in
   entails [(k1, v)] [(k2, v)]
   
+
+let setup_class_rules env =
+  let open TypingEnvironment in
+  let setup_class (k, ClassInfo (ks, _, _)) =
+    add_implication k ks
+  in
+  let setup_instance ((k,g), InstanceInfo (beta, predicates, gb)) =
+    equivalent beta k g gb predicates
+  in
+  List.iter setup_class (class_listing env);
+  List.iter setup_instance (instance_listing env)
+
+
+(* Originally from externalizeTypes.ml *)
+let canonicalize_class_predicates ts cps =
+  let open Types in
+  let cps =
+    List.filter (fun (ClassPredicate (_, t)) ->
+      List.mem t ts
+    ) cps
+  in
+  let cps = List.sort (fun (ClassPredicate (k1, _)) (ClassPredicate (k2, _)) ->
+    Pervasives.compare k1 k2
+  ) cps
+  in
+  let rec aux last = function
+    | [] -> []
+    | x :: xs ->
+      match last, x with
+        | Some (ClassPredicate (k, v1)), (ClassPredicate (k', v2)) ->
+          if k = k' && v1 = v2 then
+            aux last xs
+          else
+            (ClassPredicate (k', v2)) :: aux (Some x) xs
+        | None, x ->
+          x :: aux (Some x) xs
+  in
+  let remove_redundancy cs =
+    let subsum (ClassPredicate (k1, v1)) (ClassPredicate (k2, v2)) =
+      v1 = v2 && contains k1 k2 && k1 <> k2
+    in
+    List.(filter (fun c -> not (exists (subsum c) cs)) cs)
+  in
+  remove_redundancy (aux None cps)
+
 

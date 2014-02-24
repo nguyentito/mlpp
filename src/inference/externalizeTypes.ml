@@ -228,42 +228,12 @@ let export_class_predicate pos (k, ty) =
     | TyVar (_, v) -> ClassPredicate (k, v)
     | _ -> raise (InferenceExceptions.InvalidClassPredicateInContext (pos, k))
 
-let canonicalize_class_predicates ts cps =
-  let cps =
-    List.filter (fun (ClassPredicate (_, t)) ->
-      List.mem t ts
-    ) cps
-  in
-  let cps = List.sort (fun (ClassPredicate (k1, _)) (ClassPredicate (k2, _)) ->
-    Pervasives.compare k1 k2
-  ) cps
-  in
-  let rec aux last = function
-    | [] -> []
-    | x :: xs ->
-      match last, x with
-        | Some (ClassPredicate (k, v1)), (ClassPredicate (k', v2)) ->
-          if k = k' && v1 = v2 then
-            aux last xs
-          else
-            (ClassPredicate (k', v2)) :: aux (Some x) xs
-        | None, x ->
-          x :: aux (Some x) xs
-  in
-  let remove_redundancy cs =
-    let subsum (ClassPredicate (k1, v1)) (ClassPredicate (k2, v2)) =
-      v1 = v2 && ConstraintSimplifier.contains k1 k2 && k1 <> k2
-    in
-    List.(filter (fun c -> not (exists (subsum c) cs)) cs)
-  in
-  remove_redundancy (aux None cps)
-
 let type_scheme_of_variable =
   fun pos (vs, cps, v) ->
     try
       let export = export true in
       let (ts, ty) = export vs v in
       let cps = List.map (export_class_predicate pos) cps in
-      let cps = canonicalize_class_predicates ts cps in
+      let cps = ConstraintSimplifier.canonicalize_class_predicates ts cps in
       TyScheme (ts, cps, ty)
     with Cycle -> raise (RecursiveType pos)

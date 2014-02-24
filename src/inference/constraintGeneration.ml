@@ -591,7 +591,7 @@ let infer_instance tenv ti =
   let class_info = lookup_class tenv k in
 
   let vs, tvars_assoc = variable_list Rigid tvars in
-  let typing_context = List.map begin fun (k', a) ->
+  let typing_context = List.map begin fun (ClassPredicate (k', a)) ->
     (* Check the instance's typing context
        + return constraint with internal var *)
     ignore (lookup_class ~pos:pos tenv k');
@@ -604,10 +604,10 @@ let infer_instance tenv ti =
   
   (* the code below also check that the type constructor
      exists and has the right arity (I think?) *)
-  let term = InternalizeTypes.tycon tenv g vs in
+  let term = InternalizeTypes.tycon tenv g (List.map (fun v -> TVariable v) vs) in
   
   let tenv =
-    let info = InstanceInfo (vs, typing_context, k, term) in
+    let info = InstanceInfo (vs, typing_context, term) in
     (* includes overlapping instance check *)
     add_instance pos tenv k g info in
 
@@ -708,4 +708,4 @@ let init_env () =
 let generate_constraint b =
   let (ctx, vs, env) = init_env () in
   let env, c = infer_program env b in
-  env, ctx (infer_program env b)
+  env, ctx c

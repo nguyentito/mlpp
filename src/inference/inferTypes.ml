@@ -266,8 +266,8 @@ let program : IAST.program -> XAST.program = fun p ->
   in
   InferenceErrors.handle_error print_variable (fun () ->
     let p = AlphaRename.program p in
-    let c = generate_constraint p in
-    setup_class_rules p;
+    let env, c = generate_constraint p in
+    ConstraintSimplifier.setup_class_rules env;
     let e = solve c in
     let x = elaborate e p in
     x

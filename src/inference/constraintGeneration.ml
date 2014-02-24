@@ -551,7 +551,8 @@ let infer_class tenv tc =
   let pos = tc.class_position
   and k = tc.class_name
   and tvar = tc.class_parameter
-  and super = tc.superclasses in
+  and super = tc.superclasses
+  and members = tc.class_members in
 
   (* Check superclasses exist *)
   List.iter (fun k' -> ignore (lookup_class ~pos:pos tenv k')) super;
@@ -566,21 +567,19 @@ let infer_class tenv tc =
   let intern_method_type (pos, l, ty) =
     (l, InternalizeTypes.intern pos tenv' ty)
   in
-  let methods = List.map intern_method_type tc.class_members in
+  let methods = List.map intern_method_type members in
   let class_info = ClassInfo (super, rq, methods) in
   let tenv = add_class pos tenv k class_info in
   (* I think we don't add any constraint to the context,
      only let-binding with principal solved schemes, right? *)
-  
-  let method_scheme (l, t) =
-    Scheme (pos, [rq], [], (* closed term -> no existential var *)
-            [(k, rq)], (* K 'a => ..*)
-            CTrue pos,
-            StringMap.empty)
-  in
-  let schemes = List.map method_scheme methods in
 
-  (tenv, fun c -> CLet (schemes, c))
+  let method_scheme (pos, LName name, ty) =
+    InternalizeTypes.intern_scheme
+      pos tenv name [tvar] [ClassPredicate (k, tvar)] ty
+  in
+  let schemes = List.map method_scheme members in
+
+  tenv, (fun c -> CLet (schemes, c))
 
 
 let infer_instance tenv ti =

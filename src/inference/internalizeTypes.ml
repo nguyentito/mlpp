@@ -143,7 +143,5 @@ let intern_scheme pos tenv name qs cs typ =
   let rqs, rtenv = fresh_rigid_vars pos tenv qs in
   let tenv' = add_type_variables rtenv tenv in
   let (xs, gs, cs) = intern_class_predicates pos tenv' cs in
-  print_int (List.length gs);
-  print_newline ();
   Scheme (pos, rqs, xs, gs, conj cs,
           StringMap.singleton name (intern pos tenv' typ, pos))

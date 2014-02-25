@@ -350,7 +350,7 @@ let solve env pool c =
       | CInstance (pos, SName name, term) ->
         print_endline "<=";
         let (c, t) = lookup pos name env in
-        let ctys = List.map (fun (k, ty) -> ty) c in
+        let ks, ctys = List.split c in
         begin match instance pool (t :: ctys) with
           | [] -> assert false
           | instance :: itys ->
@@ -359,7 +359,7 @@ let solve env pool c =
             unify_terms pos pool instance t';
             (* TODO: think harder *)
             (* rtrue *)
-            c
+            List.combine ks itys
         end
 
       | CDisjunction cs ->

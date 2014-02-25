@@ -7,6 +7,8 @@ open ElaborationErrors
 open ElaborationExceptions
 open ElaborationEnvironment
 open Operators
+open AdditionnalSetOperations
+open Misc
 
 (* reduces syntactic noise *)
 let nowhere = undefined_position
@@ -53,10 +55,27 @@ let bind_simple x ty env =
 
 
 
+(* Type for indicating if a dictionary is needed for an overloaded expression
+   or a superclass field *)
+(* CHECK: name? *)
+type dict_request_source =
+| OverloadedExpr of unit (* TODO *)
+| SuperclassField of
+    (* TODO: the following is the instance "name"; maybe have a dedicated type for it?
+       (as it can also be used in instance_definition) *)
+    type_class_name * type_constr_name * (type_var_name list)
+
+
+
+
+
+
 (* Entry point of the module *)
 let rec program p = handle_error List.(fun () ->
   flatten (fst (Misc.list_foldmap block ElaborationEnvironment.initial p))
 )
+
+
 
 and block env = function
   | BTypeDefinitions ts ->
@@ -509,11 +528,6 @@ and is_value_form = function
 
 *)
 
-(* Temp *)
-and dummy_expr = 
-  assert false;
-  EPrimitive (nowhere, PUnit)
-
 
 (***** Naming functions / conventions *****)
 (* TODO: evil clash avoidance *)
@@ -621,8 +635,12 @@ and instance_definition big_env small_env inst_def =
   let index = inst_def.instance_index
   and tvars = inst_def.instance_parameters
   and cname = inst_def.instance_class_name
-  and pos = inst_def.instance_position 
-  and members = inst_def.instance_members in
+  and pos = inst_def.instance_position
+  and members = inst_def.instance_members
+  in
+
+  let class_def = lookup_class pos cname small_env
+  in
 
   (* TODO: maybe check that the same type variable does not occur twice??
      Is this enforced in the rest of the code? *)
@@ -648,68 +666,174 @@ and instance_definition big_env small_env inst_def =
   *)
   (* FIXME: we should add the superinstances to the envs *)
   (* TODO: description *)
-  let env_with_free_tvars x =
+  let env_with_free_tvars t =
     TSet.fold bind_type_variable tvar_set 
       $
-      match destruct_ntyarrow x with
+      match destruct_ntyarrow t with
       | ([], _) ->  small_env
       | _ -> big_env
   in
 
-  (* Pairs (member, type) *) (* TODO! *)
-  let augmented_members = (assert false : (record_binding * mltype) list)
+
+  (* Record bindings set type *)
+  (* Note: the following code would be far less heavy if we had a real "set" type
+     in ocaml (Ord a => 'a set, and not some functors...)
+     (here, we have to implement with functors what a typeclass would automagically
+     do for us)
+  *)
+  (* CHECK: Is it useful to define it somewhere else, in order to reuse it? *)
+  let module OrderedMember =
+	struct
+	  type t = record_binding
+	  (* CHECK: this function only checks names; is it ok? *)
+	  let compare (RecordBinding (n1, _)) (RecordBinding (n2, _)) =
+	    OrderedLName.compare n1 n2
+	end
+  in
+  let module OrderedPair =
+      struct
+  	type t = record_binding * mltype
+  	let compare (m1, t1) (m2, t2) = OrderedMember.compare m1 m2
+      end
   in
 
-  (* TODO: check that every class member is defined, exactly once *)
+
+  let module MSet = Set.Make (OrderedMember) in
+  let module PSet = Set.Make(OrderedPair) in
+
+  let module MP = BiSetOp(MSet)(PSet) in
+  let module PM = BiSetOp(PSet)(MSet) in
+
+
+  (* Build the members set and check uniqueness *)
+  let members_set =
+    List.fold_left
+      (
+	fun s x ->
+	  if MSet.mem x s then failwith "TODO: multiple definition of instance member"
+	    (* TODO: real error handling *)
+	  else MSet.add x s
+      )
+      MSet.empty members
+  in
+
+
+  (* Members set augmented with the type of the corresponding class member
+     Therefore, it is a set of (record_binding, mltype) pairs *)
+  (* TODO: what if an instance member matches no class member? *)
+  let augmented_members_set =
+    MP.map
+      (fun (RecordBinding (name, _) as binding) ->
+	(* Find corresponding class member and add its type to form the pair (member, type) *)
+	binding, proj3_3 $ List.find (((=) name) =< proj2_3) class_def.class_members
+      (* TODO: if we got no matching class member, this List.find will raise Not_found *)
+      )
+      members_set
+  in
+
+  (* TODO: check that every class member is defined
+     (uniqueness is already enforced) *)
 
   (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
-  let dict_record = ERecordCon (nw, Name "WTFITS??", 
-				(* Instantiation of the record type *)
-				instantiation Lexing.dummy_pos (* FIXME: wtf?!  *)
-				  $ TypeApplication (List.map (fun x -> TyVar (nw, x)) tvars) 
-				(* CHECK: If G is nullary, then this is the empty list, 
-				   so morally it should work (bitch) *)
-				,
-				(* TODO: check the type returned by record_binding (for class members) *)
-				(* -> check_equal_types *)
-				(* Record content *)
-				List.append
-				  (* Members defined by the current class *)
-				  (* TODO: check type returned by record_binding (remove the "fst") *)
-				  (List.map (fst =< 
-				      (fun (x,t) -> record_binding (env_with_free_tvars t) x))
-				     augmented_members)
-				  (* Superclass accessors *)
-				  (List.map (fun spcl -> RecordBinding
-				    (superclass_accessor_name spcl cname, dummy_expr)) constructor_argument_types)
+  let dict_record = ERecordCon
+    (
+      nw,
+      Name "WTFITS??",
+      (* Instantiation of the record type *)
+      instantiation Lexing.dummy_pos (* FIXME: wtf?!  *)
+	$ TypeApplication (List.map (fun x -> TyVar (nw, x)) tvars)
+	(* CHECK: If G is nullary, then this is the empty list,
+	   so morally it should work (bitch) *)
+	,
 
-				  
-  ) in
+      List.append
+	(* Members defined by the current class *)
+	(
+	  MSet.elements $
+	    PM.map
+	      (fun (rec_binding, cl_member_type) ->
+		let compiled_rb_code, computed_type = (* CHECK: names? *)
+		  record_binding (env_with_free_tvars cl_member_type) rec_binding
+		in
+		(* Check instance member type against corresponding class member type *)
+		(* FIXME: shouldn't we instanciate the class member type? *)
+		check_equal_types pos computed_type cl_member_type;
+		compiled_rb_code
+	      )
+	      augmented_members_set
+	)
+
+       (* Superclass accessors *)
+	(List.map (fun spcl ->
+	  RecordBinding
+	    (superclass_accessor_name spcl cname, assert false (* TODO *)))
+	   constructor_argument_types)
+
+    )
+  in
 
 
   (* TODO: dict_constructor should be lambda super1 ... supern . dict_record *)
   (* => ELambda + add a naming convention for dictionary variables *)
-  let dict_constructor = dict_record in
-  let dict_def = ValueDef (nowhere, tvars, [(* no class predicate *)],
-                           (instance_to_dict_name cname index,
-                            dict_constructor_type),
-                           dict_constructor) in
+  (* Superinstances arguments *)
+  let dict_constructor =
+    List.fold_right
+      (fun (ClassPredicate (name1, name2)) next ->
+	ELambda
+	  ( (* TODO *)
+	    nowhere,
+	    assert false (* (name * t) *),
+	    next
+	  ))
+      ctx
+      dict_record
+  in
+  let dict_def = ValueDef
+    (nowhere, tvars, [(* no class predicate *)],
+     (instance_to_dict_name cname index,
+      dict_constructor_type),
+     dict_constructor)
+  in
   (dict_def, new_small_env)
 
 and check_correct_context pos env tvar_set ctx =
   (* check that the classes are defined and the type variables
      are quantified over *)
-  List.iter begin fun (ClassPredicate (k, a)) ->
-    if not (TSet.mem a tvar_set)
-    then raise (UnboundTypeVariable (pos, a))
-    else ignore (lookup_class pos k env)
-  end ctx;
+  List.iter
+    (
+      fun (ClassPredicate (k, a)) ->
+	if not (TSet.mem a tvar_set)
+	then raise (UnboundTypeVariable (pos, a))
+	else ignore (lookup_class pos k env)
+    )
+    ctx;
   (* canonicity *)
-  Misc.iter_unordered_pairs begin fun cp1 cp2 ->
-    let (ClassPredicate (k1, a1)) = cp1
-    and (ClassPredicate (k2, a2)) = cp2 in
-    if a1 = a2 then check_unrelated_superclasses pos env k1 k2
-  end ctx
+  Misc.iter_unordered_pairs
+    (
+      fun cp1 cp2 ->
+	let (ClassPredicate (k1, a1)) = cp1
+	and (ClassPredicate (k2, a2)) = cp2 in
+	if a1 = a2 then check_unrelated_superclasses pos env k1 k2
+    )
+    ctx
 
 
+(** Finding parent dictionaries **)
+(* TODO: following commentaries should go to the .mli *)
+(* Following function finds a proof derivation for the target class in the given context *)
+(* CHECK: is it better to merge ctx in env for the search? *)
+and find_parent_dict_proof ctx env target =
+  (* let env' = merge_context ctx env *)
+  (* in *)
 
+  let unwrap = Misc.unwrap_res_or_die
+  in
+
+  None (* TODO *)
+	  
+
+(* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
+   an expression to access target dictionary *)
+and elaborate_parent_proof_into_expr ctx env target =
+  (* TODO *)
+  EPrimitive (nowhere, PUnit)

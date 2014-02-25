@@ -178,3 +178,8 @@ val iter_unordered_pairs : ('a -> 'a -> unit) -> 'a list -> unit
 
 
 
+(** Returns unwrapped value of the evaluation of an expression if it succeded,
+   else returns None **)
+(* This function allows to easily propagate Nones when a recursive value construction
+   fails at some point *)
+val unwrap_res_or_die: ('a -> 'b) -> 'a option -> 'b option

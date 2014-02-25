@@ -60,8 +60,11 @@
 --------------------
 - Split dict elaboration in multiple passes?
 
+
    Additional features
 --------------------------
-GADTs? Higher-kinded type classes? Weird dictionary representation?
+- GADTs? Higher-kinded type classes? Weird dictionary representation?
+- Allow "real" recursion and test well foudedness with a topological sorting, used again for elegant elaboration
+
 
 

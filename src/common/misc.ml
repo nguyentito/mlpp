@@ -382,3 +382,8 @@ let rec iter_unordered_pairs f = function
 
 
 
+let unwrap_res_or_die : 'a 'b. ('a -> 'b) -> 'a option -> 'b option
+  = fun value_creator -> function
+  | Some rec_call_value ->
+    Some (value_creator rec_call_value)
+  | None -> None

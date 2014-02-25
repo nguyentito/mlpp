@@ -3,15 +3,25 @@
 open Positions
 open Name
 
+
+(** Basic names **)
+(* TODO: check that those types are used everywhere *)
+type type_var_name = tname
+type type_class_name = tname
+type type_constr_name = tname
+
+
 (** The types are first-order terms. *)
 type t =
-  | TyVar        of position * tname
-  | TyApp        of position * tname * t list
+  | TyVar        of position * type_var_name
+  | TyApp        of position * type_constr_name * t list
 
 (** Type schemes. *)
-type scheme = TyScheme of tname list * class_predicates * t
+type scheme = TyScheme of type_var_name list * class_predicates * t
 
-and class_predicate = ClassPredicate of tname * tname
+(* CHECK that this convention (the left one is the class name, the right one is the type variable) 
+   matches the actual use of the code *)
+and class_predicate = ClassPredicate of type_class_name * type_var_name
 
 and class_predicates = class_predicate list
 
@@ -84,7 +94,7 @@ val equivalent : t -> t -> bool
 
 (** [substitute s ty] returns [ty] on which the substitution [s]
     has been applied. *)
-val substitute : (tname * t) list -> t -> t
+val substitute : (type_var_name * t) list -> t -> t
 
 (************************************************)
 
@@ -98,3 +108,17 @@ val tset_of_list : tname list -> TSet.t
 val type_variable_set : t -> TSet.t
 
 
+
+
+module LSet : Set.S with type elt = lname
+
+(** Converts a list l of lnames into a set (doesn't check name uniqueness) **)
+val lset_of_list : lname list -> LSet.t
+
+(** Converts a list l of lnames into a set while enforcing uniqueness
+    If the list names are unique, return Some s (even if the list is empty)
+    Else, returns None **)
+(* TODO: find a better name! *)
+(* TODO: do we want it to work this way (option)? 
+   => for error reporting purposes, it would be better to know which identifier is not unique *)
+val lset_of_unique_list : lname list -> LSet.t option

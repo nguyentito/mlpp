@@ -45,3 +45,9 @@ Positive tests:
 Pretty much the same thing.
 
 
+Source code documentation
+-------------------------
+
+    ocamldoc -html -d doc -I elaboration/ -I inference/ -I common/ **/*.mli
+
+

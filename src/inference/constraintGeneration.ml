@@ -589,24 +589,27 @@ let infer_instance tenv ti =
   and tvars = ti.instance_parameters in
   let class_info = lookup_class tenv k in
 
-  let vs, tvars_assoc = variable_list Rigid tvars in
+  let rqs, rtenv = fresh_rigid_vars pos tenv tvars in
+  let tvars_assoc = List.combine tvars rqs in
+  let tenv' = add_type_variables rtenv tenv in
+  (* TODO: consider replacing this with intern_class_predicates *)
   let typing_context = List.map begin fun (ClassPredicate (k', a)) ->
     (* Check the instance's typing context
        + return constraint with internal var *)
     ignore (lookup_class ~pos:pos tenv k');
     try
-      let (TVariable v) = List.assoc a tvars_assoc in
-      (k', v)
+      (k', List.assoc a tvars_assoc)
     with
       | Not_found -> raise (UnboundTypeVariable (pos, a))
   end ti.instance_typing_context in
   
   (* the code below also check that the type constructor
      exists and has the right arity (I think?) *)
-  let term = InternalizeTypes.tycon tenv g (List.map (fun v -> TVariable v) vs) in
+  let term = InternalizeTypes.intern pos tenv'
+    (TyApp (pos, g, List.map (fun x -> TyVar (pos, x)) tvars)) in
   
   let tenv =
-    let info = InstanceInfo (vs, typing_context, term) in
+    let info = InstanceInfo (rqs, typing_context, term) in
     (* includes overlapping instance check *)
     add_instance pos tenv k g info in
 
@@ -629,7 +632,8 @@ let infer_instance tenv ti =
 
   let instance_ok_constraint = 
     exists_list ti.instance_members begin fun xs ->
-      ex [v] (CConjunction (List.map infer_method xs))
+      ex [v] ((TVariable v =?= term) pos
+              ^ CConjunction (List.map infer_method xs))
     end
   in
 

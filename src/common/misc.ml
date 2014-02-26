@@ -370,3 +370,20 @@ let list_foldmap f init l =
       aux (y :: ys, accu) xs
   in
   aux ([], init) l
+
+
+(* Additional utilities coded by the students *)
+
+let rec iter_unordered_pairs f = function
+  | [] -> ()
+  | x::xs -> List.iter (f x) xs;
+             iter_unordered_pairs f xs
+
+
+
+
+let unwrap_res_or_die : 'a 'b. ('a -> 'b) -> 'a option -> 'b option
+  = fun value_creator -> function
+  | Some rec_call_value ->
+    Some (value_creator rec_call_value)
+  | None -> None

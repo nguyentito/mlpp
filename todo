@@ -1,0 +1,70 @@
+   Names
+------------
+- Change executable name ("joujou"...) and create an alias 
+
+
+
+   Code
+------------
+- Why not unify variables representations in instance definition ?
+  (switch instance_parameters to Types.t (TyVar))
+  -> it allows to keep track of variables position, and we almost always use them as a list of
+  TyVar, not as only tnames...
+  => use polymorphic variants instead
+
+- Choose a renaming strategy to avoid naming clashes
+  - proposition 1: for every generated object—even the most "unaltered" ones (non-overloaded symbols, for instance)—, use
+    a prefix indicating its "sort". E.g., class_dict_, inst_dict, var_, etc
+                            (↑ notice that we can *not* use neither "type" nor "kind" for this meaning :) ) 
+    Advantages
+      -> avoid most clashes
+      -> nice symbol typing
+    Drawbacks
+      -> heavily renamed objects (hard to read generated code)
+
+  - proposition 2: give 'em HELL! (not to be confused with "Give ML!") Generate totally random and 
+      unique names for *everything*!
+    Advantages
+      -> armageddon
+    Drawbacks
+      -> heavy obfuscation
+
+  - proposition 3: smart renaming, only in case of need (add some suffix, like _<id> with <id> a unique number)
+
+  Choice:
+  - 1 for everybody
+  - Complement with 3 for every generated symbol based on multiple source symbols, namely:
+    - inst_dict
+    - super-class field
+    - anything else?
+    (3 is needed, as seen in the following example:
+     class A with instance B_C vs class A_B with instance C
+     => same name : inst_dict_A_B_C)
+
+
+- Implement a fts option to lift akward restrictions (like variable/overloaded symbol forced clash, etc)
+
+- Currently, the compiler allows incomplete record constructions, which ocamlc rejects.
+  Should we add a test for that ? What about incomplete *instance* declarations ?
+
+
+
+   Tests
+-----------
+- Re-implement Haskell's "Num", with more canonical mathematical structures
+  (Group, Abelian, Ring, Field, etc)
+- Implement Functor/Applicative/Monad -> Need constructor classes
+
+
+   Design choices
+--------------------
+- Split dict elaboration in multiple passes?
+
+
+   Additional features
+--------------------------
+- GADTs? Higher-kinded type classes? Weird dictionary representation?
+- Allow "real" recursion and test well foudedness with a topological sorting, used again for elegant elaboration
+
+
+

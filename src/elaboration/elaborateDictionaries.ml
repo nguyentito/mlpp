@@ -6,13 +6,76 @@ open Positions
 open ElaborationErrors
 open ElaborationExceptions
 open ElaborationEnvironment
+open Operators
+open AdditionnalSetOperations
+open Misc
 
-let string_of_type ty      = ASTio.(XAST.(to_string pprint_ml_type ty))
+(* reduces syntactic noise *)
+let nowhere = undefined_position
+
+(* Using global mutable state to handle namespace segregation
+   between methods and variables *)
+
+let names_hashtbl : (name, bool) Hashtbl.t = Hashtbl.create 277
+(* true iff overloaded name *)
+
+let register_as_normal_name name =
+  try
+    if Hashtbl.find names_hashtbl name
+    then raise (OverloadedSymbolCannotBeBound (nowhere, name))
+  with
+    | Not_found -> Hashtbl.add names_hashtbl name false
+
+let register_as_overloaded_name name =
+  try
+    if not (Hashtbl.find names_hashtbl name)
+    then raise (OverloadedSymbolCannotBeBound (nowhere, name))
+  with
+    | Not_found -> Hashtbl.add names_hashtbl name true
+
+(* Redefine bind_scheme and bind_simple to register their name.
+   This should allow us to handle all bindings (pattern, lambda, let)
+   without having to rewrite code.
+   Since bind_scheme does not have a position argument,
+   our errors will not provide location info (hence the "nowhere" above).
+*)
+
+let bind_scheme x ts ps ty env = 
+  begin
+    if ps = []
+    then register_as_normal_name x
+    else register_as_overloaded_name x
+  end;
+  bind_scheme x ts ps ty env
+
+let bind_simple x ty env =
+  register_as_normal_name x;
+  bind_simple x ty env
 
 
+
+
+(* Type for indicating if a dictionary is needed for an overloaded expression
+   or a superclass field *)
+(* CHECK: name? *)
+type dict_request_source =
+| OverloadedExpr of unit (* TODO *)
+| SuperclassField of
+    (* TODO: the following is the instance "name"; maybe have a dedicated type for it?
+       (as it can also be used in instance_definition) *)
+    type_class_name * type_constr_name * (type_var_name list)
+
+
+
+
+
+
+(* Entry point of the module *)
 let rec program p = handle_error List.(fun () ->
   flatten (fst (Misc.list_foldmap block ElaborationEnvironment.initial p))
 )
+
+
 
 and block env = function
   | BTypeDefinitions ts ->
@@ -24,12 +87,17 @@ and block env = function
     ([BDefinition d], env)
 
   | BClassDefinition c ->
-    (** Class definitions are ignored. Student! This is your job! *)
-    ([], env)
+    let (dict_t, accessors, env) = class_definition env c in
+    let dict_type_def = TypeDef (nowhere, KStar, 
+                                 (class_to_type_name c.class_name),
+                                 dict_t) in
+    ([BTypeDefinitions (TypeDefs (nowhere, [dict_type_def]));
+      BDefinition (BindValue (nowhere, accessors))],
+     env)
 
   | BInstanceDefinitions is ->
-    (** Instance definitions are ignored. Student! This is your job! *)
-    ([], env)
+    let (dict_defs, env) = instance_definitions env is in
+    ([BDefinition (BindRecValue (nowhere, dict_defs))], env)
 
 and type_definitions env (TypeDefs (_, tdefs)) =
   let env = List.fold_left env_of_type_definition env tdefs in
@@ -59,7 +127,7 @@ and label_type ts rtcon env (pos, l, ty) =
 
 and algebraic_dataconstructor env (_, DName k, ts, kty) =
   check_wf_scheme env ts kty;
-  bind_scheme (Name k) ts kty env
+  bind_scheme (Name k) ts [] kty env
 
 and introduce_type_parameters env ts =
   List.fold_left (fun env t -> bind_type_variable t env) env ts
@@ -94,15 +162,18 @@ and check_equivalent_kind pos k1 k2 =
     | _ ->
       raise (IncompatibleKinds (pos, k1, k2))
 
+
+(* Is this function useless?
+   It doesn't seem to be called from anywhere else... *)
 and env_of_bindings env cdefs = List.(
   (function
     | BindValue (_, vs)
     | BindRecValue (_, vs) ->
       fold_left (fun env (ValueDef (_, ts, _, (x, ty), _)) ->
-        bind_scheme x ts ty env
+        bind_scheme x ts [] ty env (* low priority TODO: examine further *)
       ) env vs
     | ExternalValue (_, ts, (x, ty), _) ->
-      bind_scheme x ts ty env
+      bind_scheme x ts [] ty env (* external value = not overloaded *)
   ) cdefs
 )
 
@@ -111,6 +182,8 @@ and check_equal_types pos ty1 ty2 =
     raise (IncompatibleTypes (pos, ty1, ty2))
 
 and type_application pos env x tys =
+  (* TODO: handle overloading by turning a type application
+     into dictionary passing *)
   List.iter (check_wf_type env KStar) tys;
   let (ts, (_, ty)) = lookup pos x env in
   try
@@ -342,7 +415,7 @@ and value_binding env = function
     (BindRecValue (pos, vs), env)
 
   | ExternalValue (pos, ts, ((x, ty) as b), os) ->
-    let env = bind_scheme x ts ty env in
+    let env = bind_scheme x ts [] ty env in
     (ExternalValue (pos, ts, b, os), env)
 
 and eforall pos ts e =
@@ -363,17 +436,38 @@ and eforall pos ts e =
       raise (InvalidNumberOfTypeAbstraction pos)
 
 
+(***** Modifying this for the project *****)
+
 and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   let env' = introduce_type_parameters env ts in
   check_wf_scheme env ts xty;
 
   if is_value_form e then begin
     let e = eforall pos ts e in
+    (* TODO: add class constraints to local typing environment *)
     let e, ty = expression env' e in
     let b = (x, ty) in
     check_equal_types pos xty ty;
+
+    (* Checks wrt typeclasses *)
+
+    let ty_vars = type_variable_set ty in
+    List.iter begin fun (ClassPredicate (_, a)) ->
+      if not (TSet.mem a ty_vars)
+      (* unreachable constraint!
+         TODO: think about adding a specific exception for that *)
+      then raise (InvalidOverloading pos)
+    end ps;
+    
+    check_correct_context pos env (tset_of_list ts) ps;
+
+    
+    (* is this correct? *)
+
+    (* TODO: do something sensible when ps <> []
+       (expression elaboration) *)
     (ValueDef (pos, ts, [], b, EForall (pos, ts, e)),
-     bind_scheme x ts ty env)
+     bind_scheme x ts ps ty env)
   end else begin
     if ts <> [] then
       raise (ValueRestriction pos)
@@ -386,7 +480,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   end
 
 and value_declaration env (ValueDef (pos, ts, ps, (x, ty), e)) =
-  bind_scheme x ts ty env
+  bind_scheme x ts ps ty env
 
 
 and is_value_form = function
@@ -405,3 +499,341 @@ and is_value_form = function
   | _ ->
     false
 
+(* End of initial code *)
+
+(************************************************************)
+
+
+(***** Elaborate classes *****)
+
+(* note: type name of new record = type name of class *)
+
+(* strategy for now: do *not* add the elaborated record type
+   to the typing environment, only generate the code for
+   the declaration and add the original *class* decl to the env *)
+
+(* Issues to think about:
+   - do we generate accessors for superclass fields in the dictionary,
+     even though the user won't ever call them?
+     this is what is prescribed in the course notes
+     alternatively, we could just use dict.field_name...
+     current choice: only generate accessors for class members
+   => No.
+*)
+
+(* 
+   TODO: put the naming convention here
+
+   => Cf discussion in todo
+
+*)
+
+
+(***** Naming functions / conventions *****)
+(* TODO: evil clash avoidance *)
+(* TODO: unify their way of operation (parameter form, etc) *)
+(* TODO: find better names (bitch!) *)
+and sconcat = String.concat ""
+and uconcat = String.concat "_"
+and superclass_accessor_type_name (TName supcl) (TName cl) =
+  LName (uconcat ["superclass_field"; supcl; cl])
+and superclass_accessor_name = function 
+  | (TyApp (_, supercl, _)) (* (TName cl) *)  ->
+    superclass_accessor_type_name supercl
+  | _ -> assert false
+and class_to_type_name (TName cl_name) = 
+  TName (uconcat ["class_type"; cl_name]) 
+(* k = class, g = instance *)
+and instance_to_dict_name (TName cl_name) (TName inst_name) =
+  Name (uconcat ["inst_dict"; cl_name; inst_name])
+
+
+(* TODO: find better names for these functions *)
+and class_to_dict_type k a = tyappvar (class_to_type_name k) a
+and class_predicate_to_type (ClassPredicate (k, a)) = class_to_dict_type k a
+(* and class_to_dict_var_name (TName str) = Name ("_" ^ str) *)
+
+
+and tyappvar constructor variable =
+  TyApp (nowhere, constructor, [TyVar (nowhere, variable)])
+
+
+and class_definition env cdef = 
+  let tvar = cdef.class_parameter
+  and cname = cdef.class_name
+  and pos = cdef.class_position in
+
+  let env = bind_class cname cdef env in
+
+  (* Handle superclasses *)
+  let super = cdef.superclasses in
+  Misc.iter_unordered_pairs (check_unrelated_superclasses pos env) super;
+  let dict_super_fields = List.map (superclass_dictionary_field tvar cname)
+                                   super in
+
+  (* Handle class members *)
+  (* TODO: prevent 2 members from having the same name
+     also, should we allow shadowing of an overloaded name
+     by another one?
+  *)
+  let members = cdef.class_members in
+  let (accessors, env) = Misc.list_foldmap (class_member cname tvar)
+                                           env members in
+  let dict_record = DRecordType ([tvar], dict_super_fields @ members) in
+
+  (dict_record, accessors, env)
+
+and check_unrelated_superclasses pos env k1 k2 =
+  if is_superclass pos k1 k2 env || is_superclass pos k2 k1 env then
+    raise (TheseTwoClassesMustNotBeInTheSameContext (pos, k1, k2))
+
+and superclass_dictionary_field tvar cname sc_name =
+  let field_name = superclass_accessor_type_name cname sc_name in
+  (* for instance, _Eq_Ord *)
+  (nowhere, field_name, class_to_dict_type sc_name tvar)
+
+and class_member cname tvar env (pos, l, ty) =
+  check_wf_type (bind_type_variable tvar env) KStar ty;
+  begin
+    if not (TSet.mem tvar (type_variable_set ty))
+      (* unreachable constraint / ambiguous type variable *)
+    then raise (InvalidOverloading pos)
+  end;
+
+  (* generate code for accessor *)
+  let nw = nowhere in
+  let dict_type = class_to_dict_type cname tvar in
+  let accessor_elaborated_type = ntyarrow nw [dict_type] ty
+  and accessor_expr = ELambda (nw, (Name "z", dict_type),
+                               ERecordAccess (nw, EVar (nw, Name "z", []), l))
+  and accessor_name = let (LName str) = l in Name str in
+  (* Note: in the elaborated code, => was converted into ->, 
+     but the binding added to the environment has the type scheme
+     with => *)
+  (ValueDef (nowhere, [tvar], [(* no class predicate *)],
+             (accessor_name, accessor_elaborated_type),
+             accessor_expr),
+   bind_scheme accessor_name [tvar] [ClassPredicate (cname, tvar)] ty env)
+    
+
+(***** Elaborate instances *****)
+
+and instance_definitions env deflist =
+  let big_env = List.fold_left env_of_instance_definition env deflist in
+  Misc.list_foldmap (instance_definition big_env) env deflist
+
+and env_of_instance_definition env inst_def =
+  bind_instance inst_def env
+
+(* big_env: environment where all instances are visible
+   (since consecutive instances are recursively defined)
+   small_env: environment where only previous instances are visible
+   (to avoid ill-founded recursion)
+   see the course notes for more details
+*)
+and instance_definition big_env small_env inst_def =
+  let index = inst_def.instance_index
+  and tvars = inst_def.instance_parameters
+  and cname = inst_def.instance_class_name
+  and pos = inst_def.instance_position
+  and members = inst_def.instance_members
+  in
+
+  let class_def = lookup_class pos cname small_env
+  in
+
+  (* TODO: maybe check that the same type variable does not occur twice??
+     Is this enforced in the rest of the code? *)
+  let tvar_set = tset_of_list tvars in
+
+  let ctx = inst_def.instance_typing_context in
+  check_correct_context pos small_env tvar_set ctx;
+  let constructor_argument_types = List.map class_predicate_to_type ctx in 
+
+  (* new_small_env = h' + h (in subject) *)
+  let new_small_env = bind_instance inst_def small_env in
+  let nw = nowhere in
+  let dict_constructor_type =
+    let dict_type =
+      TyApp (nw, class_to_type_name cname,
+             [TyApp (nw, index,
+                     List.map (fun tv -> TyVar (nw, tv)) tvars)]) in
+    ntyarrow nowhere constructor_argument_types dict_type
+  in
+  (* TODO: actually create dictionary
+     also, what the hell is the name field in ERecordCon supposed to be???
+     => The name field is filled with a non significant name by the parser...
+  *)
+  (* FIXME: we should add the superinstances to the envs *)
+  (* TODO: description *)
+  let env_with_free_tvars t =
+    TSet.fold bind_type_variable tvar_set 
+      $
+      match destruct_ntyarrow t with
+      | ([], _) ->  small_env
+      | _ -> big_env
+  in
+
+
+  (* Record bindings set type *)
+  (* Note: the following code would be far less heavy if we had a real "set" type
+     in ocaml (Ord a => 'a set, and not some functors...)
+     (here, we have to implement with functors what a typeclass would automagically
+     do for us)
+  *)
+  (* CHECK: Is it useful to define it somewhere else, in order to reuse it? *)
+  let module OrderedMember =
+	struct
+	  type t = record_binding
+	  (* CHECK: this function only checks names; is it ok? *)
+	  let compare (RecordBinding (n1, _)) (RecordBinding (n2, _)) =
+	    OrderedLName.compare n1 n2
+	end
+  in
+  let module OrderedPair =
+      struct
+  	type t = record_binding * mltype
+  	let compare (m1, t1) (m2, t2) = OrderedMember.compare m1 m2
+      end
+  in
+
+
+  let module MSet = Set.Make (OrderedMember) in
+  let module PSet = Set.Make(OrderedPair) in
+
+  let module MP = BiSetOp(MSet)(PSet) in
+  let module PM = BiSetOp(PSet)(MSet) in
+
+
+  (* Build the members set and check uniqueness *)
+  let members_set =
+    List.fold_left
+      (
+	fun s x ->
+	  if MSet.mem x s then failwith "TODO: multiple definition of instance member"
+	    (* TODO: real error handling *)
+	  else MSet.add x s
+      )
+      MSet.empty members
+  in
+
+
+  (* Members set augmented with the type of the corresponding class member
+     Therefore, it is a set of (record_binding, mltype) pairs *)
+  (* TODO: what if an instance member matches no class member? *)
+  let augmented_members_set =
+    MP.map
+      (fun (RecordBinding (name, _) as binding) ->
+	(* Find corresponding class member and add its type to form the pair (member, type) *)
+	binding, proj3_3 $ List.find (((=) name) =< proj2_3) class_def.class_members
+      (* TODO: if we got no matching class member, this List.find will raise Not_found *)
+      )
+      members_set
+  in
+
+  (* TODO: check that every class member is defined
+     (uniqueness is already enforced) *)
+
+  (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
+  let dict_record = ERecordCon
+    (
+      nw,
+      Name "WTFITS??",
+      (* Instantiation of the record type *)
+      instantiation Lexing.dummy_pos (* FIXME: wtf?!  *)
+	$ TypeApplication (List.map (fun x -> TyVar (nw, x)) tvars)
+	(* CHECK: If G is nullary, then this is the empty list,
+	   so morally it should work (bitch) *)
+	,
+
+      List.append
+	(* Members defined by the current class *)
+	(
+	  MSet.elements $
+	    PM.map
+	      (fun (rec_binding, cl_member_type) ->
+		let compiled_rb_code, computed_type = (* CHECK: names? *)
+		  record_binding (env_with_free_tvars cl_member_type) rec_binding
+		in
+		(* Check instance member type against corresponding class member type *)
+		(* FIXME: shouldn't we instanciate the class member type? *)
+		check_equal_types pos computed_type cl_member_type;
+		compiled_rb_code
+	      )
+	      augmented_members_set
+	)
+
+       (* Superclass accessors *)
+	(List.map (fun spcl ->
+	  RecordBinding
+	    (superclass_accessor_name spcl cname, assert false (* TODO *)))
+	   constructor_argument_types)
+
+    )
+  in
+
+
+  (* TODO: dict_constructor should be lambda super1 ... supern . dict_record *)
+  (* => ELambda + add a naming convention for dictionary variables *)
+  (* Superinstances arguments *)
+  let dict_constructor =
+    List.fold_right
+      (fun (ClassPredicate (name1, name2)) next ->
+	ELambda
+	  ( (* TODO *)
+	    nowhere,
+	    assert false (* (name * t) *),
+	    next
+	  ))
+      ctx
+      dict_record
+  in
+  let dict_def = ValueDef
+    (nowhere, tvars, [(* no class predicate *)],
+     (instance_to_dict_name cname index,
+      dict_constructor_type),
+     dict_constructor)
+  in
+  (dict_def, new_small_env)
+
+and check_correct_context pos env tvar_set ctx =
+  (* check that the classes are defined and the type variables
+     are quantified over *)
+  List.iter
+    (
+      fun (ClassPredicate (k, a)) ->
+	if not (TSet.mem a tvar_set)
+	then raise (UnboundTypeVariable (pos, a))
+	else ignore (lookup_class pos k env)
+    )
+    ctx;
+  (* canonicity *)
+  Misc.iter_unordered_pairs
+    (
+      fun cp1 cp2 ->
+	let (ClassPredicate (k1, a1)) = cp1
+	and (ClassPredicate (k2, a2)) = cp2 in
+	if a1 = a2 then check_unrelated_superclasses pos env k1 k2
+    )
+    ctx
+
+
+(** Finding parent dictionaries **)
+(* TODO: following commentaries should go to the .mli *)
+(* Following function finds a proof derivation for the target class in the given context *)
+(* CHECK: is it better to merge ctx in env for the search? *)
+and find_parent_dict_proof ctx env target =
+  (* let env' = merge_context ctx env *)
+  (* in *)
+
+  let unwrap = Misc.unwrap_res_or_die
+  in
+
+  None (* TODO *)
+	  
+
+(* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
+   an expression to access target dictionary *)
+and elaborate_parent_proof_into_expr ctx env target =
+  (* TODO *)
+  EPrimitive (nowhere, PUnit)

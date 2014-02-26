@@ -1,19 +1,27 @@
 open Positions
 open Name
 
+
 type kind =
   | KStar
   | KArrow of kind * kind
 
+type type_var_name = tname
+type type_class_name = tname
+type type_constr_name = tname
+
+
+(* TODO: rename this! Why the f*ck would you ever name a potentially
+   de facto top-level type "t"!?!? *)
 type t =
-  | TyVar   of position * tname
-  | TyApp   of position * tname * t list
+  | TyVar        of position * type_var_name
+  | TyApp        of position * type_constr_name * t list
 
-type scheme = TyScheme of tname list * class_predicates * t
+type scheme = TyScheme of type_var_name list * class_predicates * t
 
-and class_predicate = ClassPredicate of tname * tname
-
+and class_predicate = ClassPredicate of type_class_name * type_var_name
 and class_predicates = class_predicate list
+
 
 let tyarrow pos ity oty =
   TyApp (pos, TName "->", [ity; oty])
@@ -104,6 +112,13 @@ let rec kind_of_arity = function
   | 0 -> KStar
   | n -> KArrow (KStar, kind_of_arity (pred n))
 
+
+(* FIXME: not sure we'll use it...*)
+let rec arity_of_kind = function
+  | KStar -> 0
+  | KArrow (KStar, k) -> 1 + arity_of_kind k
+  | _ -> assert false (* FIXME: ? *)
+
 let rec equivalent ty1 ty2 =
   match ty1, ty2 with
     | TyVar (_, t), TyVar (_, t') ->
@@ -113,9 +128,42 @@ let rec equivalent ty1 ty2 =
     | _, _ ->
       false
 
-let rec substitute (s : (tname * t) list) = function
+let rec substitute (s : (type_var_name * t) list) = function
   | TyVar (p, v) ->
     (try List.assoc v s with Not_found -> TyVar (p, v))
 
   | TyApp (pos, t, tys) ->
     TyApp (pos, t, List.map (substitute s) tys)
+
+(*************************************)
+
+module TSet = Set.Make(OrderedTName)
+let tset_of_list l =
+  List.fold_left (fun acc x -> TSet.add x acc) TSet.empty l
+
+(* this implementation is slightly simpler (and more stupid) than
+   a linear-time DFS would be *)
+let rec type_variable_set = function
+  | TyVar (_, tv) -> TSet.singleton tv
+  | TyApp (_, _, args) ->
+    let f acc t = TSet.union acc (type_variable_set t) in
+    List.fold_left f TSet.empty args
+
+
+
+module LSet = Set.Make(OrderedLName)
+let lset_of_list l =
+  List.fold_left (fun acc x -> LSet.add x acc) LSet.empty l
+
+let lset_of_unique_list l =
+  (* CHECK: other way to define a local exception? *)
+  let module M = struct exception NotUnique end in
+  let open M in
+
+  let build s x =
+    if LSet.mem x s then raise M.NotUnique
+    else LSet.add x s
+  in
+
+  try Some (List.fold_left build LSet.empty l) with
+  | NotUnique -> None

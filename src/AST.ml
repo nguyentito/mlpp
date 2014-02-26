@@ -19,16 +19,17 @@ module Make (P : Types.TypingSyntax) = struct
     class_parameter : tname;
     superclasses    : tname list;
     class_name      : tname;
-    class_members   : (position * lname * mltype) list;
+    class_members   : (position * lname * mltype) list; (* TODO: this should be a set, or a map 
+							   Problem : declaration order (should be preserved) *)
   }
 
   and instance_definition = {
     instance_position       : position;
-    instance_parameters     : tname list;
-    instance_typing_context : class_predicate list;
-    instance_class_name     : tname;
-    instance_index          : tname;
-    instance_members        : record_binding list;
+    instance_parameters     : type_var_name list; (* FIXME: use a polymorphic variant, bitch! *)
+    instance_typing_context : class_predicate list; (* TODO: rename *)
+    instance_class_name     : type_class_name;
+    instance_index          : type_constr_name;
+    instance_members        : record_binding list; (* TODO: this should be a set, or even a map *)
   }
 
   and value_binding =
@@ -61,7 +62,7 @@ module Make (P : Types.TypingSyntax) = struct
 
     (** Records. *)
     | ERecordAccess of position * expression * lname
-    | ERecordCon of position * name * instantiation * record_binding list
+    | ERecordCon of position * name * instantiation * record_binding list  (* TODO: this should be a set *)
 
   (** Constant. *)
   and primitive =

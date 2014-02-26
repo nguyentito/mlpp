@@ -348,7 +348,7 @@ let solve env pool c =
             unify_terms pos pool instance t';
             (* TODO: think harder *)
             (* rtrue *)
-            List.combine ks itys
+            ConstraintSimplifier.canonicalize pos pool (List.combine ks itys)
         end
 
       | CDisjunction cs ->

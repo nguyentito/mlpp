@@ -373,7 +373,7 @@ let solve env pool c =
       let header = StringMap.map (fun (t, _) -> chop pool' t) header in
       
       let solved_c1 = ConstraintSimplifier.canonicalize
-                        pos pool (solve env pool' given_c c1) in
+                        pos pool' (solve env pool' given_c c1) in
 
       distinct_variables pos rqs;
       generalize pool pool';
@@ -387,7 +387,7 @@ let solve env pool c =
       let scheme_preds, remaining_constraints =
         List.partition
           (fun (_, v) ->
-            List.any (UnionFind.equivalent v) generalized_variables)
+            List.exists (UnionFind.equivalent v) generalized_variables)
           solved_c1 in
       (remaining_constraints, (generalized_variables, scheme_preds, header))
 

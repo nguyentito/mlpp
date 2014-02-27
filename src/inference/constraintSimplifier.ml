@@ -129,9 +129,9 @@ let entails c1 c2 = (* C1 ||- C2 *)
   List.for_all (fun p -> visited p) c2
 
 
-let contains k1 k2 = (* k1 >= k2 *)
+let contains k1 k2 =
   let v = variable Rigid () in
-  entails [(k1, v)] [(k2, v)]
+  entails [(k2, v)] [(k1, v)]
   
 
 let setup_class_rules env =

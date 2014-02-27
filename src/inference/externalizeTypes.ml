@@ -254,7 +254,13 @@ let type_of_variable pos v =
 let export_class_predicate pos (k, ty) =
   match snd (export false [] ty) with
     | TyVar (_, v) -> ClassPredicate (k, v)
-    | _ -> raise (InferenceExceptions.InvalidClassPredicateInContext (pos, k))
+    (* | _ -> let open InferenceExceptions in *)
+    (*        raise (InvalidClassPredicateInContext (pos, k)) *)
+    | TyApp (_, TName x, _) ->
+      let open InferenceExceptions in
+          print_string "FOOO! ";
+          print_endline x;
+          raise (InvalidClassPredicateInContext (pos, k))
 
 let canonicalize_class_predicates ts cps =
   let cps =

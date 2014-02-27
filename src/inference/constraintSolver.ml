@@ -305,10 +305,8 @@ let solve env pool c =
         rtrue
 
       | CPredicate (pos, k, ty) ->
-        let open ConstraintSimplifier in
-        let t = chop pool ty in
-        let inferred_c = canonicalize pos pool [(k,t)] in
-        inferred_c (* TODO: figure out how to integrate given_c *)
+        (* TODO: figure out how to integrate given_c *)
+        [(k, chop pool ty)]
 
       | CEquation (pos, term1, term2) ->
         let t1, t2 = twice (chop pool) term1 term2 in
@@ -347,8 +345,7 @@ let solve env pool c =
             answer := new_instantiation !answer (name, pos) t';
             unify_terms pos pool instance t';
             (* TODO: think harder *)
-            (* rtrue *)
-            ConstraintSimplifier.canonicalize pos pool (List.combine ks itys)
+            List.combine ks itys
         end
 
       | CDisjunction cs ->
@@ -364,7 +361,7 @@ let solve env pool c =
 
       let solved_c = solve env pool given_c c1 in
       let henv = StringMap.map (fun (t, _) -> chop pool t) header in
-      (rtrue, ([], solved_c, henv))
+      (solved_c, ([], [], henv))
 
     | Scheme (pos, rqs, fqs, given_c1, c1, header) ->
 
@@ -374,7 +371,10 @@ let solve env pool c =
       List.iter (introduce pool') rqs;
       List.iter (introduce pool') fqs;
       let header = StringMap.map (fun (t, _) -> chop pool' t) header in
-      let solved_c1 = solve env pool' given_c c1 in
+      
+      let solved_c1 = ConstraintSimplifier.canonicalize
+                        pos pool (solve env pool' given_c c1) in
+
       distinct_variables pos rqs;
       generalize pool pool';
       generic_variables pos rqs;
@@ -384,7 +384,12 @@ let solve env pool c =
           IntRank.compare desc.rank IntRank.none = 0)
           (inhabitants pool')
       in
-      (rtrue, (generalized_variables, solved_c1, header))
+      let scheme_preds, remaining_constraints =
+        List.partition
+          (fun (_, v) ->
+            List.any (UnionFind.equivalent v) generalized_variables)
+          solved_c1 in
+      (remaining_constraints, (generalized_variables, scheme_preds, header))
 
   and concat env (vs, c, header) =
     StringMap.fold (fun name v env ->

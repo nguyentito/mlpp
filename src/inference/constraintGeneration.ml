@@ -577,7 +577,7 @@ let infer_instance tenv ti =
   and g = ti.instance_index
   and pos = ti.instance_position
   and tvars = ti.instance_parameters in
-  let class_info = lookup_class tenv k in
+  (* let class_info = lookup_class tenv k in *)
 
   let rqs, rtenv = fresh_rigid_vars pos tenv tvars in
   let tvars_assoc = List.combine tvars rqs in

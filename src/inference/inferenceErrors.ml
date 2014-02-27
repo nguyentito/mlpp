@@ -87,9 +87,9 @@ let handle_error print_variable p =
     | E.MultipleClassDefinitions (pos, TName x) ->
       fatal pos (s "  Class `%s' is defined several times." x)
 
-    | E.OverlappingInstances (pos, TName x, v) ->
+    | E.OverlappingInstances (pos, TName x, TName y) ->
       fatal pos (s "  Class `%s' has two instances on head symbol `%s'."
-                   x (print_variable pos v))
+                   x y)
 
     | E.InvalidClassPredicateInContext (pos, TName x) ->
       fatal pos (s "  Class predicate '%s' is applied to something\

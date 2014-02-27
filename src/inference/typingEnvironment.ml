@@ -302,10 +302,8 @@ let add_class pos env k x =
 
 let add_instance pos env k g x =
   try
-    (* TODO: put the variable corresponding to g in variabloop *)
-    let variabloop = variable Constant () in
     ignore (Env.lookup env.instance_info (k, g));
-    raise (OverlappingInstances (pos, k, variabloop))
+    raise (OverlappingInstances (pos, k, g))
   with Not_found ->
     { env with instance_info = Env.add env.instance_info (k, g) x }
 

@@ -598,6 +598,9 @@ let infer_instance tenv ti =
   let term = InternalizeTypes.intern pos tenv'
     (TyApp (pos, g, List.map (fun x -> TyVar (pos, x)) tvars)) in
   
+  (* Since we use this environment in the rest of the code, 
+     methods implementations can use this instance recursively.
+     TODO: mutual recursion between successive instances *)
   let tenv =
     let info = InstanceInfo (rqs, typing_context, term) in
     (* includes overlapping instance check *)
@@ -620,11 +623,13 @@ let infer_instance tenv ti =
       raise (IncompatibleLabel (pos, l))
   in
 
-  let instance_ok_constraint = 
-    exists_list ti.instance_members begin fun xs ->
-      ex [v] ((TVariable v =?= term) pos
-              ^ CConjunction (List.map infer_method xs))
-    end
+  let instance_ok_constraint =
+    CLet ([ Scheme (pos, rqs, [v], typing_context,
+                    exists_list ti.instance_members (fun xs ->
+                      (TVariable v =?= term) pos
+                      ^ CConjunction (List.map infer_method xs)),
+                    StringMap.empty) ],
+          CTrue pos)
   in
 
   (tenv, fun c -> instance_ok_constraint ^ c)

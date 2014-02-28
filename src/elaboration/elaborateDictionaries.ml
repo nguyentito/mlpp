@@ -663,6 +663,12 @@ and instance_definition big_env small_env inst_def =
   and members = inst_def.instance_members
   in
 
+  (* contains parameters as free variables *)
+  let instance_type =
+    TyApp (nowhere, index,
+           List.map (fun tv -> TyVar (nowhere, tv)) tvars) in
+
+
   let class_def = lookup_class pos cname small_env
   in
 
@@ -676,12 +682,9 @@ and instance_definition big_env small_env inst_def =
 
   (* new_small_env = h' + h (in subject) *)
   let new_small_env = bind_instance inst_def small_env in
-  let nw = nowhere in
   let dict_constructor_type =
     let dict_type =
-      TyApp (nw, class_to_type_name cname,
-             [TyApp (nw, index,
-                     List.map (fun tv -> TyVar (nw, tv)) tvars)]) in
+      TyApp (nowhere, class_to_type_name cname, [instance_type]) in
     ntyarrow nowhere constructor_argument_types dict_type
   in
   (* TODO: actually create dictionary
@@ -746,13 +749,23 @@ and instance_definition big_env small_env inst_def =
      Therefore, it is a set of (record_binding, mltype) pairs *)
   (* TODO: what if an instance member matches no class member? *)
   let augmented_members_set =
-    MP.map
-      (fun (RecordBinding (name, _) as binding) ->
-        (* Find corresponding class member and add its type to form the pair (member, type) *)
-        binding, proj3_3 $ List.find (((=) name) =< proj2_3) class_def.class_members
+    (* Find corresponding class member and add its type,
+       instanciated at the instance type, to form the pair (member, type) *)
+    let rec subst = function
+      | TyVar (pos, x) when x = class_def.class_parameter ->
+        instance_type
+      (* TODO: change this once we support classes with
+         polymorphic methods, e.g. fmap *)
+      | TyVar _ -> failwith "unbound type var"
+      | TyApp (pos, constr, args) -> TyApp (pos, constr, List.map subst args)
+    in
+    let f (RecordBinding (name, _)) =
       (* TODO: if we got no matching class member, this List.find will raise Not_found *)
-      )
-      members_set
+      subst =< proj3_3 =< List.find (((=) name) =< proj2_3)
+      $ class_def.class_members
+    in
+    let id x = x in (* why isn't this part of the standard library? *)
+    MP.map (id &&& f)  members_set
   in
 
   (* TODO: check that every class member is defined
@@ -761,11 +774,11 @@ and instance_definition big_env small_env inst_def =
   (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
   let dict_record = ERecordCon
     (
-      nw,
+      nowhere,
       Name "WTFITS??",
       (* Instantiation of the record type *)
       instantiation Lexing.dummy_pos (* FIXME: wtf?!  *)
-        $ TypeApplication (List.map (fun x -> TyVar (nw, x)) tvars)
+        $ TypeApplication (List.map (fun x -> TyVar (nowhere, x)) tvars)
         (* CHECK: If G is nullary, then this is the empty list,
            so morally it should work (bitch) *)
         ,
@@ -779,8 +792,8 @@ and instance_definition big_env small_env inst_def =
                 let compiled_rb_code, computed_type = (* CHECK: names? *)
                   record_binding (env_with_free_tvars cl_member_type) rec_binding
                 in
-                (* Check instance member type against corresponding class member type *)
-                (* FIXME: shouldn't we instanciate the class member type? *)
+                (* Check instance member type against corresponding class
+                   member type, correctly instantiated *)
                 check_equal_types pos computed_type cl_member_type;
                 compiled_rb_code
               )
@@ -941,7 +954,7 @@ and find_parent_dict_proof ctx env target =
   in
 
   loop target
-          
+	  
 
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)

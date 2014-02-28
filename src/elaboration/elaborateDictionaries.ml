@@ -66,8 +66,26 @@ type dict_request_source =
     type_class_name * type_constr_name * (type_var_name list)
 
 
+(* Type that represents *any* class predicate.
+   More exactly, it covers the following cases: 
+   the type can be:
+   - a simple type variable
+   - built from a single {0,1}-ary type constructor and (possibly) a type variable) 
+*)
+type general_class_predicate =  type_class_name * predicate_target
+and predicate_target = 
+| PredicateTypeVar of type_var_name
+| PredicateTypeConstr of type_constr_name * type_var_name option
 
 
+let make_gen_cl_pred (ClassPredicate (cl, var)) =
+  cl, PredicateTypeVar var
+
+
+type instance_tree = 
+| InstLeafFromEnv of instance_definition
+| InstLeafFromCtx of class_predicate
+| InstBranch of instance_definition * instance_tree list
 
 
 (* Entry point of the module *)
@@ -537,10 +555,6 @@ and sconcat = String.concat ""
 and uconcat = String.concat "_"
 and superclass_accessor_type_name (TName supcl) (TName cl) =
   LName (uconcat ["superclass_field"; supcl; cl])
-and superclass_accessor_name = function 
-  | (TyApp (_, supercl, _)) (* (TName cl) *)  ->
-    superclass_accessor_type_name supercl
-  | _ -> assert false
 and class_to_type_name (TName cl_name) = 
   TName (uconcat ["class_type"; cl_name]) 
 (* k = class, g = instance *)
@@ -764,10 +778,40 @@ and instance_definition big_env small_env inst_def =
 	)
 
        (* Superclass accessors *)
-	(List.map (fun spcl ->
-	  RecordBinding
-	    (superclass_accessor_name spcl cname, assert false (* TODO *)))
-	   constructor_argument_types)
+	(List.map 
+	   (fun spcl ->
+	     RecordBinding
+	       (superclass_accessor_type_name spcl cname, 
+		(* TODO: remove this (debug) and return a proper expression *)
+		begin
+		  (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
+		  let rec p = function
+		    | InstLeafFromEnv instdef ->
+		      "From env"
+		    | InstLeafFromCtx _ ->
+		      "From ctx"
+		    | InstBranch (inst, dep) ->
+		      "Inst" ^ (* TODO *) "[" ^ (String.concat "; "(List.map p dep)) ^ "]"
+		  in
+		  let deriv =
+		    find_parent_dict_proof ctx small_env 
+		      (spcl, PredicateTypeConstr (index, 
+					     match tvars with
+					     | [] -> None
+					     | [v] -> Some v
+					     | _ -> assert false)
+		      )
+		  in
+		  match deriv with
+		  | Some deriv ->
+		    p deriv;
+		    elaborate_parent_proof_into_expr ctx small_env deriv
+		  | None -> assert false
+		end
+	       )
+	   )
+	   class_def.superclasses
+	)
 
     )
   in
@@ -821,15 +865,72 @@ and check_correct_context pos env tvar_set ctx =
 (** Finding parent dictionaries **)
 (* TODO: following commentaries should go to the .mli *)
 (* Following function finds a proof derivation for the target class in the given context *)
+(* The following functions have simple forms thanks to the simplification of the class system *)
 (* CHECK: is it better to merge ctx in env for the search? *)
+(* TODO: try to add more position information (remove as much nowheres as possible) *)
 and find_parent_dict_proof ctx env target =
-  (* let env' = merge_context ctx env *)
-  (* in *)
-
   let unwrap = Misc.unwrap_res_or_die
+  and unwrap_list = Misc.unwrap_res_or_die_list
   in
 
-  None (* TODO *)
+  let rec loop (cl, target) =
+    match target with
+    | PredicateTypeVar v ->
+      begin
+	match List.filter ((=) (ClassPredicate (cl, v))) ctx with
+	| [] ->
+	  None
+	| [inst] ->
+	  Some (InstLeafFromCtx inst)
+	| _ ->
+	  assert false (* Duplicate entry in context *)
+      end
+
+    | PredicateTypeConstr (constr, opt_var) ->
+      let arity = arity_of_kind (lookup_type_kind nowhere constr env)
+      in
+
+      begin
+	match arity with
+	(* Nullary constructor target (i.e., base type) *)
+	| 0 ->
+	  (* Simple check to ensure coherence *)
+	  (match opt_var with 
+	  | Some _ -> raise (InvalidTypeApplication nowhere)
+	  | None -> ());
+	  (* CHECK: should it be IllKindedType? *)
+	  
+
+	  unwrap (fun x -> Some (InstLeafFromEnv x)) (lookup_instance (cl, constr) env)
+	    
+	(* Unary constructor target *)
+	| 1 ->
+	  (* Simple check to ensure coherence *)
+	  if opt_var = None then
+	    raise (IllKindedType nowhere);
+	  
+	  (* TODO : this match is an unwrap *)
+	  (
+	    match lookup_instance (cl, constr) env with
+	    | None -> None
+	    | Some inst ->
+	      let dependencies = inst.instance_typing_context 
+	      in
+
+	      let new_targets = List.map (fun x -> Some (make_gen_cl_pred x)) dependencies
+	      in
+		
+	      unwrap (fun e -> Some (InstBranch (inst, e))) 
+		$ unwrap_list loop new_targets
+	  )
+
+	| n -> assert false (* TODO *)
+
+      end
+
+  in
+
+  loop target
 	  
 
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate

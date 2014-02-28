@@ -47,6 +47,10 @@
 - Currently, the compiler allows incomplete record constructions, which ocamlc rejects.
   Should we add a test for that ? What about incomplete *instance* declarations ?
 
+- Enforce the usage of cleaner type names in the code (tname childs : type_var_name, etc)
+
+- Refactor existing code to make it cleaner, more logical, more canonical, more beautiful
+
 
 
    Tests

@@ -382,8 +382,22 @@ let rec iter_unordered_pairs f = function
 
 
 
-let unwrap_res_or_die : 'a 'b. ('a -> 'b) -> 'a option -> 'b option
+let unwrap_res_or_die : 'a 'b. ('a -> 'b option) -> 'a option -> 'b option
   = fun value_creator -> function
   | Some rec_call_value ->
-    Some (value_creator rec_call_value)
+    value_creator rec_call_value
   | None -> None
+
+
+(*  FIXME: this seems a bit too heavy... Is it a better way to do it? *)
+let unwrap_res_or_die_list : 'a 'b. ('a -> 'b option) -> 'a option list -> 'b list option
+  = fun value_creator l ->
+    let l' =
+      List.map (unwrap_res_or_die value_creator) l
+    in
+
+    match List.filter (function | None -> true | Some _ -> false) l' with
+    | [] ->
+      Some (List.map (function | Some e -> e | None -> assert false) l')
+    | _ ->
+      None

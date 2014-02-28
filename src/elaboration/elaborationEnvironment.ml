@@ -9,10 +9,13 @@ module LMap = Map.Make(OrderedLName)
 module NMap = Map.Make(OrderedName)
 module NSet = Set.Make(OrderedName)
 
-module InstanceMap = Map.Make(struct
-  type t = tname * tname (* class name * instance *)
-  let compare = compare
-end)
+module InstanceMap = Map.Make
+  (
+    struct
+      type t = type_class_name * type_constr_name (* class name * instance *)
+      let compare = compare
+    end
+  )
 
 (*
 type t = {
@@ -131,3 +134,23 @@ let bind_instance inst env =
   end;
   { env with instances = InstanceMap.add inst_key inst env.instances }
 
+
+(* let lookup_instance pos inst_key env = *)
+(*   (\* In this simplified system, as there is no overlapping, there is *)
+(*      at most one instance "proof" derivation, and thus, every instance *)
+(*      involved in one derivation is (necessarily) mandatory *\) *)
+(*   try *)
+(*     TMap.find inst_key env.instances *)
+      
+(*   (\* CHECK: i'm not sure this is the right exception *\) *)
+(*   with Not_found -> raise (CannotElaborateDictionnary (pos, assert false (\* TODO *\))) *)
+
+let lookup_instance inst_key env =
+  (* In this simplified system, as there is no overlapping, there is
+     at most one instance "proof" derivation, and thus, every instance
+     involved in one derivation is (necessarily) mandatory *)
+  try
+    Some (InstanceMap.find inst_key env.instances)
+      
+  (* CHECK: i'm not sure this is the right exception *)
+  with Not_found -> None

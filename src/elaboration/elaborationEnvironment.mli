@@ -5,6 +5,12 @@ open Positions
 open Name
 open Types
 
+(* TODO: transpose lookup functions to match the new way of reporting errors (haskell style)
+   -> lookup functions only return an optionnal result
+   -> but if an immediate error report is needed, a wrapper function (that also takes a position)
+      is provided 
+*)
+
 (** The type of environments. *)
 type t
 
@@ -65,4 +71,5 @@ val lookup_label : position -> lname -> t -> tnames * Types.t * tname
 (** [bind_instance pos i e] adds the instance [i] to the environment [e] *)
 val bind_instance : instance_definition -> t -> t
 
-
+(** [lookup_instance pos i e] returns the instance_definition of [i] in [e]. *)
+val lookup_instance : (type_class_name * type_constr_name) -> t -> instance_definition option

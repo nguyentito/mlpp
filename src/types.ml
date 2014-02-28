@@ -7,8 +7,8 @@ type kind =
   | KArrow of kind * kind
 
 type type_var_name = tname
-type type_class_name = tname
 type type_constr_name = tname
+type type_class_name = tname
 
 
 (* TODO: rename this! Why the f*ck would you ever name a potentially

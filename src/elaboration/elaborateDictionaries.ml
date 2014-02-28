@@ -40,12 +40,15 @@ let register_as_overloaded_name name =
    our errors will not provide location info (hence the "nowhere" above).
 *)
 
+(* TODO: add position argument to bind_scheme and modify all
+   occurrences so that error messages are nicer *)
+
+let bind_method_scheme x ts ps ty env = 
+  register_as_overloaded_name x;
+  bind_scheme x ts ps ty env (* the old bind_scheme *)
+
 let bind_scheme x ts ps ty env = 
-  begin
-    if ps = []
-    then register_as_normal_name x
-    else register_as_overloaded_name x
-  end;
+  register_as_normal_name x;
   bind_scheme x ts ps ty env
 
 let bind_simple x ty env =
@@ -634,7 +637,7 @@ and class_member cname tvar env (pos, l, ty) =
   (ValueDef (nowhere, [tvar], [(* no class predicate *)],
              (accessor_name, accessor_elaborated_type),
              accessor_expr),
-   bind_scheme accessor_name [tvar] [ClassPredicate (cname, tvar)] ty env)
+   bind_method_scheme accessor_name [tvar] [ClassPredicate (cname, tvar)] ty env)
     
 
 (***** Elaborate instances *****)

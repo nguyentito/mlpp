@@ -653,7 +653,7 @@ and env_of_instance_definition env inst_def =
    (since consecutive instances are recursively defined)
    small_env: environment where only previous instances are visible
    (to avoid ill-founded recursion)
-   see the course notes for more details
+   see the project spec for more details
 *)
 and instance_definition big_env small_env inst_def =
   let index = inst_def.instance_index
@@ -707,17 +707,17 @@ and instance_definition big_env small_env inst_def =
   *)
   (* CHECK: Is it useful to define it somewhere else, in order to reuse it? *)
   let module OrderedMember =
-	struct
-	  type t = record_binding
-	  (* CHECK: this function only checks names; is it ok? *)
-	  let compare (RecordBinding (n1, _)) (RecordBinding (n2, _)) =
-	    OrderedLName.compare n1 n2
-	end
+        struct
+          type t = record_binding
+          (* CHECK: this function only checks names; is it ok? *)
+          let compare (RecordBinding (n1, _)) (RecordBinding (n2, _)) =
+            OrderedLName.compare n1 n2
+        end
   in
   let module OrderedPair =
       struct
-  	type t = record_binding * mltype
-  	let compare (m1, t1) (m2, t2) = OrderedMember.compare m1 m2
+          type t = record_binding * mltype
+          let compare (m1, t1) (m2, t2) = OrderedMember.compare m1 m2
       end
   in
 
@@ -733,10 +733,10 @@ and instance_definition big_env small_env inst_def =
   let members_set =
     List.fold_left
       (
-	fun s x ->
-	  if MSet.mem x s then failwith "TODO: multiple definition of instance member"
-	    (* TODO: real error handling *)
-	  else MSet.add x s
+        fun s x ->
+          if MSet.mem x s then failwith "TODO: multiple definition of instance member"
+            (* TODO: real error handling *)
+          else MSet.add x s
       )
       MSet.empty members
   in
@@ -748,8 +748,8 @@ and instance_definition big_env small_env inst_def =
   let augmented_members_set =
     MP.map
       (fun (RecordBinding (name, _) as binding) ->
-	(* Find corresponding class member and add its type to form the pair (member, type) *)
-	binding, proj3_3 $ List.find (((=) name) =< proj2_3) class_def.class_members
+        (* Find corresponding class member and add its type to form the pair (member, type) *)
+        binding, proj3_3 $ List.find (((=) name) =< proj2_3) class_def.class_members
       (* TODO: if we got no matching class member, this List.find will raise Not_found *)
       )
       members_set
@@ -765,63 +765,63 @@ and instance_definition big_env small_env inst_def =
       Name "WTFITS??",
       (* Instantiation of the record type *)
       instantiation Lexing.dummy_pos (* FIXME: wtf?!  *)
-	$ TypeApplication (List.map (fun x -> TyVar (nw, x)) tvars)
-	(* CHECK: If G is nullary, then this is the empty list,
-	   so morally it should work (bitch) *)
-	,
+        $ TypeApplication (List.map (fun x -> TyVar (nw, x)) tvars)
+        (* CHECK: If G is nullary, then this is the empty list,
+           so morally it should work (bitch) *)
+        ,
 
       List.append
-	(* Members defined by the current class *)
-	(
-	  MSet.elements $
-	    PM.map
-	      (fun (rec_binding, cl_member_type) ->
-		let compiled_rb_code, computed_type = (* CHECK: names? *)
-		  record_binding (env_with_free_tvars cl_member_type) rec_binding
-		in
-		(* Check instance member type against corresponding class member type *)
-		(* FIXME: shouldn't we instanciate the class member type? *)
-		check_equal_types pos computed_type cl_member_type;
-		compiled_rb_code
-	      )
-	      augmented_members_set
-	)
+        (* Members defined by the current class *)
+        (
+          MSet.elements $
+            PM.map
+              (fun (rec_binding, cl_member_type) ->
+                let compiled_rb_code, computed_type = (* CHECK: names? *)
+                  record_binding (env_with_free_tvars cl_member_type) rec_binding
+                in
+                (* Check instance member type against corresponding class member type *)
+                (* FIXME: shouldn't we instanciate the class member type? *)
+                check_equal_types pos computed_type cl_member_type;
+                compiled_rb_code
+              )
+              augmented_members_set
+        )
 
        (* Superclass accessors *)
-	(List.map 
-	   (fun spcl ->
-	     RecordBinding
-	       (superclass_accessor_type_name spcl cname, 
-		(* TODO: remove this (debug) and return a proper expression *)
-		begin
-		  (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
-		  let rec p = function
-		    | InstLeafFromEnv instdef ->
-		      "From env"
-		    | InstLeafFromCtx _ ->
-		      "From ctx"
-		    | InstBranch (inst, dep) ->
-		      "Inst" ^ (* TODO *) "[" ^ (String.concat "; "(List.map p dep)) ^ "]"
-		  in
-		  let deriv =
-		    find_parent_dict_proof ctx small_env 
-		      (spcl, PredicateTypeConstr (index, 
-					     match tvars with
-					     | [] -> None
-					     | [v] -> Some v
-					     | _ -> assert false)
-		      )
-		  in
-		  match deriv with
-		  | Some deriv ->
-		    p deriv;
-		    elaborate_parent_proof_into_expr ctx small_env deriv
-		  | None -> assert false
-		end
-	       )
-	   )
-	   class_def.superclasses
-	)
+        (List.map 
+           (fun spcl ->
+             RecordBinding
+               (superclass_accessor_type_name spcl cname, 
+                (* TODO: remove this (debug) and return a proper expression *)
+                begin
+                  (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
+                  let rec p = function
+                    | InstLeafFromEnv instdef ->
+                      "From env"
+                    | InstLeafFromCtx _ ->
+                      "From ctx"
+                    | InstBranch (inst, dep) ->
+                      "Inst" ^ (* TODO *) "[" ^ (String.concat "; "(List.map p dep)) ^ "]"
+                  in
+                  let deriv =
+                    find_parent_dict_proof ctx small_env 
+                      (spcl, PredicateTypeConstr (index, 
+                                             match tvars with
+                                             | [] -> None
+                                             | [v] -> Some v
+                                             | _ -> assert false)
+                      )
+                  in
+                  match deriv with
+                  | Some deriv ->
+                    p deriv;
+                    elaborate_parent_proof_into_expr ctx small_env deriv
+                  | None -> assert false
+                end
+               )
+           )
+           class_def.superclasses
+        )
 
     )
   in
@@ -833,12 +833,12 @@ and instance_definition big_env small_env inst_def =
   let dict_constructor =
     List.fold_right
       (fun (ClassPredicate (name1, name2)) next ->
-	ELambda
-	  ( (* TODO *)
-	    nowhere,
-	    assert false (* (name * t) *),
-	    next
-	  ))
+        ELambda
+          ( (* TODO *)
+            nowhere,
+            assert false (* (name * t) *),
+            next
+          ))
       ctx
       dict_record
   in
@@ -856,18 +856,18 @@ and check_correct_context pos env tvar_set ctx =
   List.iter
     (
       fun (ClassPredicate (k, a)) ->
-	if not (TSet.mem a tvar_set)
-	then raise (UnboundTypeVariable (pos, a))
-	else ignore (lookup_class pos k env)
+        if not (TSet.mem a tvar_set)
+        then raise (UnboundTypeVariable (pos, a))
+        else ignore (lookup_class pos k env)
     )
     ctx;
   (* canonicity *)
   Misc.iter_unordered_pairs
     (
       fun cp1 cp2 ->
-	let (ClassPredicate (k1, a1)) = cp1
-	and (ClassPredicate (k2, a2)) = cp2 in
-	if a1 = a2 then check_unrelated_superclasses pos env k1 k2
+        let (ClassPredicate (k1, a1)) = cp1
+        and (ClassPredicate (k2, a2)) = cp2 in
+        if a1 = a2 then check_unrelated_superclasses pos env k1 k2
     )
     ctx
 
@@ -887,13 +887,13 @@ and find_parent_dict_proof ctx env target =
     match target with
     | PredicateTypeVar v ->
       begin
-	match List.filter ((=) (ClassPredicate (cl, v))) ctx with
-	| [] ->
-	  None
-	| [inst] ->
-	  Some (InstLeafFromCtx inst)
-	| _ ->
-	  assert false (* Duplicate entry in context *)
+        match List.filter ((=) (ClassPredicate (cl, v))) ctx with
+        | [] ->
+          None
+        | [inst] ->
+          Some (InstLeafFromCtx inst)
+        | _ ->
+          assert false (* Duplicate entry in context *)
       end
 
     | PredicateTypeConstr (constr, opt_var) ->
@@ -901,47 +901,47 @@ and find_parent_dict_proof ctx env target =
       in
 
       begin
-	match arity with
-	(* Nullary constructor target (i.e., base type) *)
-	| 0 ->
-	  (* Simple check to ensure coherence *)
-	  (match opt_var with 
-	  | Some _ -> raise (InvalidTypeApplication nowhere)
-	  | None -> ());
-	  (* CHECK: should it be IllKindedType? *)
-	  
+        match arity with
+        (* Nullary constructor target (i.e., base type) *)
+        | 0 ->
+          (* Simple check to ensure coherence *)
+          (match opt_var with 
+          | Some _ -> raise (InvalidTypeApplication nowhere)
+          | None -> ());
+          (* CHECK: should it be IllKindedType? *)
+          
 
-	  unwrap (fun x -> Some (InstLeafFromEnv x)) (lookup_instance (cl, constr) env)
-	    
-	(* Unary constructor target *)
-	| 1 ->
-	  (* Simple check to ensure coherence *)
-	  if opt_var = None then
-	    raise (IllKindedType nowhere);
-	  
-	  (* TODO : this match is an unwrap *)
-	  (
-	    match lookup_instance (cl, constr) env with
-	    | None -> None
-	    | Some inst ->
-	      let dependencies = inst.instance_typing_context 
-	      in
+          unwrap (fun x -> Some (InstLeafFromEnv x)) (lookup_instance (cl, constr) env)
+            
+        (* Unary constructor target *)
+        | 1 ->
+          (* Simple check to ensure coherence *)
+          if opt_var = None then
+            raise (IllKindedType nowhere);
+          
+          (* TODO : this match is an unwrap *)
+          (
+            match lookup_instance (cl, constr) env with
+            | None -> None
+            | Some inst ->
+              let dependencies = inst.instance_typing_context 
+              in
 
-	      let new_targets = List.map (fun x -> Some (make_gen_cl_pred x)) dependencies
-	      in
-		
-	      unwrap (fun e -> Some (InstBranch (inst, e))) 
-		$ unwrap_list loop new_targets
-	  )
+              let new_targets = List.map (fun x -> Some (make_gen_cl_pred x)) dependencies
+              in
+                
+              unwrap (fun e -> Some (InstBranch (inst, e))) 
+                $ unwrap_list loop new_targets
+          )
 
-	| n -> assert false (* TODO *)
+        | n -> assert false (* TODO *)
 
       end
 
   in
 
   loop target
-	  
+          
 
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)

@@ -20,7 +20,7 @@ module Make (P : Types.TypingSyntax) = struct
     superclasses    : tname list;
     class_name      : tname;
     class_members   : (position * lname * mltype) list; (* TODO: this should be a set, or a map 
-							   Problem : declaration order (should be preserved) *)
+                                                           Problem : declaration order (should be preserved) *)
   }
 
   and instance_definition = {

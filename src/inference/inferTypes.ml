@@ -40,6 +40,7 @@ let elaborate : ConstraintSolver.answer -> IAST.program -> XAST.program =
       | BInstanceDefinitions is ->
         XAST.BInstanceDefinitions (List.map instance_definition is)
 
+    (* No need to change this, right? *)
     and class_definition cd =
       {
         XAST.class_name      = cd.class_name;
@@ -49,6 +50,8 @@ let elaborate : ConstraintSolver.answer -> IAST.program -> XAST.program =
         XAST.class_parameter = cd.class_parameter
       }
 
+    (* We have to change the type parameters to reflect the naming choices
+       made during type inference *)
     and instance_definition id =
       {
         XAST.instance_position = id.instance_position;
@@ -266,7 +269,8 @@ let program : IAST.program -> XAST.program = fun p ->
   in
   InferenceErrors.handle_error print_variable (fun () ->
     let p = AlphaRename.program p in
-    let c = generate_constraint p in
+    let env, c = generate_constraint p in
+    ConstraintSimplifier.setup_class_rules env;
     let e = solve c in
     let x = elaborate e p in
     x

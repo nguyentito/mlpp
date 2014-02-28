@@ -207,11 +207,6 @@ let export is_type_scheme =
       | Var v ->
         export_variable visited v
 
-      | RowCons _
-      | RowUniform _ ->
-        (** Because we do not make use of rows in the source language. *)
-        assert false
-
     in export t
   in
   let prefix visited tvs () =
@@ -259,7 +254,11 @@ let type_of_variable pos v =
 let export_class_predicate pos (k, ty) =
   match snd (export false [] ty) with
     | TyVar (_, v) -> ClassPredicate (k, v)
-    | _ -> raise (InferenceExceptions.InvalidClassPredicateInContext (pos, k))
+    (* | _ -> let open InferenceExceptions in *)
+    (*        raise (InvalidClassPredicateInContext (pos, k)) *)
+    | TyApp (_, TName x, _) ->
+      let open InferenceExceptions in
+          raise (InvalidClassPredicateInContext (pos, k))
 
 let canonicalize_class_predicates ts cps =
   let cps =

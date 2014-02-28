@@ -30,4 +30,4 @@ open IAST
 
 (** [generate_constraint p] generates a closed constraint that describes
     the typing of [p]. *)
-val generate_constraint: program -> tconstraint
+val generate_constraint: program -> environment * tconstraint

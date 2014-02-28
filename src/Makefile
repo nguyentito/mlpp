@@ -70,7 +70,7 @@ all: build
 
 
 build:
-	ocamlbuild -Is parsing/pprint-20130324/src,parsing,inference,elaboration,common -use-ocamlfind -use-menhir -yaccflags --explain,--external-tokens,Tokens -cflags -annot front.native
+	ocamlbuild -Is parsing/pprint-20130324/src,parsing,inference,elaboration,common -use-ocamlfind -use-menhir -yaccflags --explain,--external-tokens,Tokens -cflags -annot front.native && cp front.native joujou
 
 # pprint:
 # 	$(MAKE) -C $(PPRINT)

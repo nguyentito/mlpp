@@ -41,6 +41,12 @@ and datatype_info =
   | Sum     of (dname * variable) list
   | Product of variable list * crterm * (lname * crterm) list
 
+(* superclasses, parameter, bindings *)
+type class_info = ClassInfo of tname list * variable * (lname * crterm) list
+(* parameters, context, internal representation *)
+type instance_info =
+    InstanceInfo of variable list * Constraint.tclass_constraint * crterm
+
 (** Each data constructor is assigned an ML scheme. *)
 type data_constructor = int * variable list * crterm
 
@@ -124,8 +130,37 @@ val fresh_unnamed_rigid_vars :
 val add_type_and_kind_variables :
   (tname * variable) list -> environment -> environment
 
-(** [fresh_product_of_label env l] returns the type of the record
+(** [fresh_product_of_label pos env l] returns the type of the record
     type containing [l] as well as the type of its labels. In addition,
     the type parameters of the record type are taken fresh. *)
 val fresh_product_of_label : position -> environment -> lname
   -> variable list * (crterm * (lname * crterm) list)
+
+
+(*** Additions to the original ***)
+
+(** Add a class into the environment, raising an exception
+    when the name is already taken *)
+val add_class : position -> environment -> tname -> class_info -> environment
+
+(** Add an instance into the environment, raising an exception
+    in case of overlapping instances *)
+val add_instance : position -> environment -> tname -> tname -> instance_info
+  -> environment
+
+(** Given the name of a class, return relevant information *)
+val lookup_class : ?pos:Positions.position -> environment -> tname -> class_info
+
+(** Given the name of an instance, return relevant information *)
+val lookup_instance : ?pos:Positions.position
+                    -> environment -> tname -> tname -> instance_info
+
+(** [fresh_methods_of_class pos env k] returns the types of the methods
+    of the class named [k], instantiated with a fresh type parameter. *)
+val fresh_methods_of_class : position -> environment -> tname
+  -> variable * (lname * crterm) list
+
+val class_listing : environment -> (tname * class_info) list
+
+val instance_listing : environment -> ((tname * tname) * instance_info) list
+

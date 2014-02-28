@@ -73,17 +73,25 @@ let as_type_variable (_, v, _) =
    - its type. *)
 type data_constructor = int * variable list * crterm
 
+type class_info = ClassInfo of tname list * variable * (lname * crterm) list
+type instance_info =  
+    InstanceInfo of variable list * Constraint.tclass_constraint * crterm
+
 (** [environment] denotes typing information associated to identifiers. *)
 type environment =
     {
       type_info        : (tname, type_info) Env.t;
       data_constructor : (dname, data_constructor) Env.t;
+      class_info       : (tname, class_info) Env.t;
+      instance_info    : (tname * tname, instance_info) Env.t;
     }
 
 let empty_environment =
   {
     type_info        = Env.empty;
     data_constructor = Env.empty;
+    class_info       = Env.empty;
+    instance_info    = Env.empty;
   }
 
 let union_type_variables env1 env2 =
@@ -281,3 +289,48 @@ let fresh_product_of_label pos env l =
     )
   with Not_found ->
     raise (UnboundLabel (pos, l))
+
+
+(***************************************************)
+
+let add_class pos env k x =
+  try
+    ignore (Env.lookup env.class_info k);
+    raise (MultipleClassDefinitions (pos, k))
+  with Not_found ->
+    { env with class_info = Env.add env.class_info k x }
+
+let add_instance pos env k g x =
+  try
+    ignore (Env.lookup env.instance_info (k, g));
+    raise (OverlappingInstances (pos, k, g))
+  with Not_found ->
+    { env with instance_info = Env.add env.instance_info (k, g) x }
+
+let lookup_class ?pos env k =
+  try
+    Env.lookup env.class_info k
+  with Not_found ->
+    raise (UnboundClass ((pos_or_undef pos), k))
+
+(* do we really need this function? *)
+let lookup_instance ?pos env k g = assert false
+
+let fresh_methods_of_class pos env k =
+  let ClassInfo (_, v, ltys) = lookup_class ~pos:pos env k in
+  let [v_fresh], ltys_fresh = fresh_types [v] (fun f ->
+    List.map (fun (l, ty) -> (l, f ty)) ltys
+  ) in
+  (v_fresh, ltys_fresh)
+
+let class_listing env =
+  (* we don't want to break an abstraction barrier with the Env module,
+     hence the convoluted way of returning an associative list
+     when we already have one *)
+  Env.fold_left (fun acc pair -> pair :: acc) [] env.class_info
+
+let instance_listing env =
+  Env.fold_left (fun acc pair -> pair :: acc) [] env.instance_info
+
+
+

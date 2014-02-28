@@ -107,7 +107,7 @@ exception MultipleClassDefinitions of position * tname
 
 (** [OverlappingInstance] is raised when two instances of the
     same class overlap. *)
-exception OverlappingInstances of position * tname * variable
+exception OverlappingInstances of position * tname * tname
 
 (** [InvalidClassPredicateInContext] is raised when a class is applied to
     something that is not a variable, in a typing context. *)

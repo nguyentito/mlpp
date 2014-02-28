@@ -15,21 +15,10 @@ open MultiEquation
 (** [Unsat] is raised if a canonical constraint C ≡ false. *)
 exception Unsat
 
-(** [OverlappingInstances] is raised if two rules of kind (E) overlap. *)
-exception OverlappingInstances of tname * variable
-
-(** [MultipleClassDefinitions k] is raised if two rules of kind (I)
-    share the same goal. *)
-exception MultipleClassDefinitions of tname
-
-(** [UnboundClass k] is raised if the type class [k] occurs in a
-    constraint while it is undefined. *)
-exception UnboundClass of tname
-
-(** [equivalent [b1;..;bN] k t [(k_1,t_1);...;(k_N,t_N)]] registers
-    a rule of the form (E). *)
+(** [Equivalent [b1;..;bN] k g <g \vec{b}> [(k_1,t_1);...;(k_No,t_N)]]
+    registers a rule of the form (E). *)
 val equivalent
-  : variable list -> tname -> variable -> (tname * variable) list -> unit
+  : variable list -> tname -> tname -> crterm -> (tname * variable) list -> unit
 
 (** [canonicalize pos pool c] where [c = [(k_1,t_1);...;(k_N,t_N)]]
     decomposes [c] into an equivalent constraint [c' =
@@ -44,7 +33,7 @@ val canonicalize
 val add_implication
   : tname -> tname list -> unit
 
-(** [entails C1 C2] returns true is the canonical constraint [C1] implies
+(** [entails C1 C2] returns true if the canonical constraint [C1] implies
     the canonical constraint [C2]. *)
 val entails
   : (tname * variable) list -> (tname * variable) list -> bool
@@ -52,3 +41,6 @@ val entails
 (** [contains k1 k2] *)
 val contains
   : tname -> tname -> bool
+
+val setup_class_rules : TypingEnvironment.environment -> unit
+

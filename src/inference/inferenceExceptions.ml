@@ -68,7 +68,7 @@ exception TypingError of Positions.position
 
 exception UnboundIdentifier of position * name
 
-exception OverlappingInstances of position * tname * variable
+exception OverlappingInstances of position * tname * tname
 
 exception InvalidClassPredicateInContext of position * tname
 

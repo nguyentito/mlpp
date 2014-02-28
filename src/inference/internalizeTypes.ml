@@ -125,7 +125,9 @@ let intern_class_predicate pos tenv (ClassPredicate (k, a)) =
   let x = variable Flexible () in
   let tx = TVariable x in
   let kty = intern pos tenv (TyVar (pos, a)) in
-  let c = (tx =?= kty) pos in
+  (* TODO: is this change sensible? *)
+  (* let c = (tx =?= kty) pos in *)
+  let c = (tx =?= kty) pos ^ CPredicate (pos, k, tx) in
   ((x, c), (k, x))
 
 let intern_class_predicates pos tenv cs =
@@ -135,9 +137,11 @@ let intern_class_predicates pos tenv cs =
 
 (** [intern_scheme tenv name qs cs typ] produces a type scheme
     that binds [name] to [forall qs [cs]. typ]. *)
+(* This was modified to have rigid instead of flexible variables,
+   which should be what we need, right? *)
 let intern_scheme pos tenv name qs cs typ =
-  let fqs, rtenv = fresh_flexible_vars pos tenv qs in
+  let rqs, rtenv = fresh_rigid_vars pos tenv qs in
   let tenv' = add_type_variables rtenv tenv in
   let (xs, gs, cs) = intern_class_predicates pos tenv' cs in
-  Scheme (pos, [], xs @ fqs, gs, conj cs,
+  Scheme (pos, rqs, xs, gs, conj cs,
           StringMap.singleton name (intern pos tenv' typ, pos))

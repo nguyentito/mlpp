@@ -1,109 +1,103 @@
 open Name
 
+module E = InferenceExceptions
+
 let handle_error print_variable p =
   let fatal pos msg =
     let pos = Positions.([start_of_position pos; end_of_position pos]) in
     Errors.fatal pos msg
-  in
+  and s = Printf.sprintf in
   try
     p ()
   with
     | AlphaRename.UnboundVariable (pos, Name x) ->
-      fatal pos (Printf.sprintf "  Identifier `%s' is unbound." x)
+      fatal pos (s "  Identifier `%s' is unbound." x)
 
     | AlphaRename.OverloadedSymbolCannotBeBound (pos, Name x) ->
-      fatal pos (Printf.sprintf
-                   "  Identifier `%s' cannot be both overloaded and let-bound."
+      fatal pos (s "  Identifier `%s' cannot be both overloaded and let-bound."
                    x)
 
-    | InferenceExceptions.UnboundTypeVariable (pos, TName x) ->
-      fatal pos (Printf.sprintf "  Type variable `%s' is unbound." x)
+    | E.UnboundTypeVariable (pos, TName x) ->
+      fatal pos (s "  Type variable `%s' is unbound." x)
 
-    | InferenceExceptions.UnboundTypeConstructor (pos, TName x) ->
-      fatal pos (Printf.sprintf "  Type constructor `%s' is unbound." x)
+    | E.UnboundTypeConstructor (pos, TName x) ->
+      fatal pos (s "  Type constructor `%s' is unbound." x)
 
-    | InferenceExceptions.UnboundTypeIdentifier (pos, TName x) ->
-      fatal pos (Printf.sprintf "  Type identifier `%s' is unbound." x)
+    | E.UnboundTypeIdentifier (pos, TName x) ->
+      fatal pos (s "  Type identifier `%s' is unbound." x)
 
-    | InferenceExceptions.UnboundLabel (pos, LName x) ->
-      fatal pos (Printf.sprintf "  Label `%s' is unbound." x)
+    | E.UnboundLabel (pos, LName x) ->
+      fatal pos (s "  Label `%s' is unbound." x)
 
-    | InferenceExceptions.InvalidTypeVariableIdentifier (pos, TName x) ->
-      fatal pos (Printf.sprintf "  `%s' is already a type constructor." x)
+    | E.InvalidTypeVariableIdentifier (pos, TName x) ->
+      fatal pos (s "  `%s' is already a type constructor." x)
 
-    | InferenceExceptions.UnboundDataConstructor (pos, DName x) ->
-      fatal pos (Printf.sprintf "  Data constructor `%s' is unbound." x)
+    | E.UnboundDataConstructor (pos, DName x) ->
+      fatal pos (s "  Data constructor `%s' is unbound." x)
 
-    | InferenceExceptions.InvalidDataConstructorDefinition (pos, DName x) ->
-      fatal pos (Printf.sprintf
-                   "  Invalid definition of data constructor `%s'."
+    | E.InvalidDataConstructorDefinition (pos, DName x) ->
+      fatal pos (s "  Invalid definition of data constructor `%s'." x)
+
+    | E.MultipleLabels (pos, LName x) ->
+      fatal pos (s "  Label `%s' appears multiple times in a record." x)
+
+    | E.NonLinearPattern (pos, Name x) ->
+      fatal pos (s "  Identifier `%s' appears multiple times in a pattern."
                    x)
 
-    | InferenceExceptions.MultipleLabels (pos, LName x) ->
-      fatal pos (Printf.sprintf
-                   "  Label `%s' appears multiple times in a record." x)
-
-    | InferenceExceptions.NonLinearPattern (pos, Name x) ->
-      fatal pos (Printf.sprintf
-                   "  Identifier `%s' appears multiple times in a pattern."
-                   x)
-
-    | InferenceExceptions.InvalidDisjunctionPattern pos ->
+    | E.InvalidDisjunctionPattern pos ->
       fatal pos "  Disjunctive patterns must bind the same variables."
 
-    | InferenceExceptions.NotEnoughPatternArgts pos ->
+    | E.NotEnoughPatternArgts pos ->
       fatal pos "  Invalid application of a data constructor in a pattern."
 
-    | InferenceExceptions.CannotGeneralize (pos, v) ->
+    | E.CannotGeneralize (pos, v) ->
       fatal pos
-        (Printf.sprintf
-           "  Cannot generalize the type of this term as requested.
+        (s "  Cannot generalize the type of this term as requested.
          \n   Inferred type: %s"
            (print_variable pos v))
 
-    | InferenceExceptions.NonDistinctVariables (pos, vl) ->
+    | E.NonDistinctVariables (pos, vl) ->
       fatal pos
-        (Printf.sprintf
-           "  The following type variables are inferred to be equal: `%s'."
+        (s "  The following type variables are inferred to be equal: `%s'."
            (String.concat " " (List.map (print_variable pos) vl)))
 
-    | InferenceExceptions.KindError pos ->
+    | E.KindError pos ->
       fatal pos "  Ill-kinded type."
 
-    | InferenceExceptions.PartialDataConstructorApplication (pos, xa, ga) ->
-      fatal pos (Printf.sprintf
-                   "  Partial data constructor application
+    | E.PartialDataConstructorApplication (pos, xa, ga) ->
+      fatal pos (s "  Partial data constructor application
                       (given %d, expecting %d)."
                    ga xa)
 
-    | InferenceExceptions.TypingError pos ->
+    | E.TypingError pos ->
       fatal pos "  Type error."
 
-    | InferenceExceptions.IncompatibleTypes (pos, v1, v2) ->
-      fatal pos (Printf.sprintf
-                   "  The following two types are incompatible:\n    %s\n    %s"
+    | E.IncompatibleTypes (pos, v1, v2) ->
+      fatal pos (s "  The following two types are incompatible:\n    %s\n    %s"
                    (print_variable pos v1)
                    (print_variable pos v2))
 
-    | InferenceExceptions.UnboundIdentifier (pos, Name x) ->
-      fatal pos (Printf.sprintf
-                   "  `%s' is unbound."
+    | E.UnboundIdentifier (pos, Name x) ->
+      fatal pos (s "  `%s' is unbound." x)
+
+    | E.UnboundClass (pos, TName x) ->
+      fatal pos (s "  Class `%s' is unbound." x)
+
+    | E.MultipleClassDefinitions (pos, TName x) ->
+      fatal pos (s "  Class `%s' is defined several times." x)
+
+    | E.OverlappingInstances (pos, TName x, TName y) ->
+      fatal pos (s "  Class `%s' has two instances on head symbol `%s'."
+                   x y)
+
+    | E.InvalidClassPredicateInContext (pos, TName x) ->
+      fatal pos (s "  Class predicate '%s' is applied to something\
+                      \ other than a variable."
                    x)
 
-    | InferenceExceptions.UnboundClass (pos, TName x) ->
-      fatal pos (Printf.sprintf
-                   "  Class `%s' is unbound."
-                   x)
-
-    | InferenceExceptions.MultipleClassDefinitions (pos, TName x) ->
-      fatal pos (Printf.sprintf
-                   "  Class `%s' is defined several times."
-                   x)
-
-    | InferenceExceptions.OverlappingInstances (pos, TName x, v) ->
-      fatal pos (Printf.sprintf
-                   "  Class `%s' has two instances on head symbol `%s'."
-                   x (print_variable pos v))
+    | E.IncompatibleLabel (pos, LName x) ->
+      fatal pos (s "  The label '%s' is not part of this record type." x)
 
     | ExternalizeTypes.RecursiveType pos ->
-      fatal pos (Printf.sprintf "  Type error.")
+      fatal pos (s "  Type error.")

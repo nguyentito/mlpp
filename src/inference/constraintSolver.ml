@@ -286,6 +286,9 @@ let solve env pool c =
 
   (** [given_c] corresponds to the class predicates given
       by the programmer as an annotation. *)
+
+  (* TODO: understand what given_c does *)
+
   let rec solve env pool given_c c =
     let pos = cposition c in
     try
@@ -302,8 +305,8 @@ let solve env pool c =
         rtrue
 
       | CPredicate (pos, k, ty) ->
-        (* Student! This is your job! *)
-        rtrue
+        (* TODO: figure out how to integrate given_c *)
+        [(k, chop pool ty)]
 
       | CEquation (pos, term1, term2) ->
         let t1, t2 = twice (chop pool) term1 term2 in
@@ -311,6 +314,9 @@ let solve env pool c =
         rtrue
 
       | CConjunction cl ->
+        (* TODO: should we modify this?
+           as of now, rconj is List.flatten, which does not
+           eliminate duplicates... *)
         rconj (List.map (solve env pool given_c) cl)
 
       | CLet ([ Scheme (_, [], fqs, [], c, _) ], CTrue _) ->
@@ -331,14 +337,15 @@ let solve env pool c =
 
       | CInstance (pos, SName name, term) ->
         let (c, t) = lookup pos name env in
-        let ctys = List.map (fun (k, ty) -> ty) c in
+        let ks, ctys = List.split c in
         begin match instance pool (t :: ctys) with
           | [] -> assert false
           | instance :: itys ->
-                    let t' = chop pool term in
+            let t' = chop pool term in
             answer := new_instantiation !answer (name, pos) t';
             unify_terms pos pool instance t';
-            rtrue
+            (* TODO: think harder *)
+            List.combine ks itys
         end
 
       | CDisjunction cs ->
@@ -354,7 +361,7 @@ let solve env pool c =
 
       let solved_c = solve env pool given_c c1 in
       let henv = StringMap.map (fun (t, _) -> chop pool t) header in
-      (rtrue, ([], solved_c, henv))
+      (solved_c, ([], [], henv))
 
     | Scheme (pos, rqs, fqs, given_c1, c1, header) ->
 
@@ -364,7 +371,10 @@ let solve env pool c =
       List.iter (introduce pool') rqs;
       List.iter (introduce pool') fqs;
       let header = StringMap.map (fun (t, _) -> chop pool' t) header in
-      let solved_c1 = solve env pool' given_c c1 in
+      
+      let solved_c1 = ConstraintSimplifier.canonicalize
+                        pos pool' (solve env pool' given_c c1) in
+
       distinct_variables pos rqs;
       generalize pool pool';
       generic_variables pos rqs;
@@ -374,7 +384,12 @@ let solve env pool c =
           IntRank.compare desc.rank IntRank.none = 0)
           (inhabitants pool')
       in
-      (rtrue, (generalized_variables, solved_c1, header))
+      let scheme_preds, remaining_constraints =
+        List.partition
+          (fun (_, v) ->
+            List.exists (UnionFind.equivalent v) generalized_variables)
+          solved_c1 in
+      (remaining_constraints, (generalized_variables, scheme_preds, header))
 
   and concat env (vs, c, header) =
     StringMap.fold (fun name v env ->

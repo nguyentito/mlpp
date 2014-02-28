@@ -186,6 +186,7 @@ let header_of_binding pos tenv (Name x, ty) t =
 
 let fresh_record_name =
   let r = ref 0 in
+  (* CHECK: are you serious? Does this actually work? *)
   fun () -> incr r; Name (Printf.sprintf "_record_%d" !r)
 
 (** [intern_data_constructor adt_name env_info dcon_info] returns
@@ -214,6 +215,7 @@ let infer_typedef tenv (TypeDefs (pos, tds)) =
     let ikind = KindInferencer.intern_kind (as_kind_env tenv) kind
     and ids_def = ref Abstract
     and ivar = variable ~name:name Constant () in
+    (* TODO: decide whether this is as useless as it looks like *)
     let c = fun c' ->
       CLet ([Scheme (pos, [ivar], [], [], c', StringMap.empty)],
             CTrue pos)
@@ -537,13 +539,101 @@ and infer_label pos tenv ltys (RecordBinding (l, exp), t) =
 
 
 let infer_class tenv tc =
-  (* Student! This is your job! *)
-  (tenv, fun c -> c)
+  let pos = tc.class_position
+  and k = tc.class_name
+  and tvar = tc.class_parameter
+  and super = tc.superclasses
+  and members = tc.class_members in
+
+  (* Check superclasses exist *)
+  List.iter (fun k' -> ignore (lookup_class ~pos:pos tenv k')) super;
+  
+  (* We suppose that the existence of a class is not visible
+     when checking the well-formedness of the types of its members,
+     which makes sense since they are monomorphic.
+     TODO: check consistency with other design decisions *)
+
+  let [rq], rtenv = fresh_unnamed_rigid_vars pos tenv [tvar] in
+  let tenv' = add_type_variables rtenv tenv in
+  let intern_method_type (pos, l, ty) =
+    (l, InternalizeTypes.intern pos tenv' ty)
+  in
+  let methods = List.map intern_method_type members in
+  let class_info = ClassInfo (super, rq, methods) in
+  let tenv = add_class pos tenv k class_info in
+  (* I think we don't add any constraint to the context,
+     only let-binding with principal solved schemes, right? *)
+
+  let method_scheme (pos, LName name, ty) =
+    InternalizeTypes.intern_scheme
+      pos tenv name [tvar] [ClassPredicate (k, tvar)] ty
+  in
+  let schemes = List.map method_scheme members in
+
+  tenv, (fun c -> CLet (schemes, c))
 
 
 let infer_instance tenv ti =
-  (* Student! This is your job! *)
-  (tenv, fun c -> c)
+  let k = ti.instance_class_name
+  and g = ti.instance_index
+  and pos = ti.instance_position
+  and tvars = ti.instance_parameters in
+  (* let class_info = lookup_class tenv k in *)
+
+  let rqs, rtenv = fresh_rigid_vars pos tenv tvars in
+  let tvars_assoc = List.combine tvars rqs in
+  let tenv' = add_type_variables rtenv tenv in
+  (* TODO: consider replacing this with intern_class_predicates *)
+  let typing_context = List.map begin fun (ClassPredicate (k', a)) ->
+    (* Check the instance's typing context
+       + return constraint with internal var *)
+    ignore (lookup_class ~pos:pos tenv k');
+    try
+      (k', List.assoc a tvars_assoc)
+    with
+      | Not_found -> raise (UnboundTypeVariable (pos, a))
+  end ti.instance_typing_context in
+  
+  (* the code below also check that the type constructor
+     exists and has the right arity (I think?) *)
+  let term = InternalizeTypes.intern pos tenv'
+    (TyApp (pos, g, List.map (fun x -> TyVar (pos, x)) tvars)) in
+  
+  (* Since we use this environment in the rest of the code, 
+     methods implementations can use this instance recursively.
+     TODO: mutual recursion between successive instances *)
+  let tenv =
+    let info = InstanceInfo (rqs, typing_context, term) in
+    (* includes overlapping instance check *)
+    add_instance pos tenv k g info in
+
+  (* TODO: is there more to do, like enriching the context
+     with lets, for instance? *)
+  (* Refer to ERecordCon *)
+  (* let h = StringMap.add k (t, pos) StringMap.empty in *)
+  (* CLet ([ monoscheme h ], (SName k <? t) pos) *)
+
+  let (v, ltys) = fresh_methods_of_class pos tenv k in
+
+  (* As it is now, this is a carbon copy of infer_label *)
+  let infer_method (RecordBinding (l, exp), t) =
+    try
+      ((List.assoc l ltys) =?= t) pos ^ infer_expr tenv exp t
+    with Not_found ->
+      (* TODO: add specific exception? or is this enough? *)
+      raise (IncompatibleLabel (pos, l))
+  in
+
+  let instance_ok_constraint =
+    CLet ([ Scheme (pos, rqs, [v], typing_context,
+                    exists_list ti.instance_members (fun xs ->
+                      (TVariable v =?= term) pos
+                      ^ CConjunction (List.map infer_method xs)),
+                    StringMap.empty) ],
+          CTrue pos)
+  in
+
+  (tenv, fun c -> instance_ok_constraint ^ c)
 
 (** [infer e] determines whether the expression [e] is well-typed
     in the empty environment. *)
@@ -557,7 +647,7 @@ let bind env b =
 
 let rec infer_program env p =
   let (env, ctx) = fold env block p in
-  ctx (CDump undefined_position)
+  env, ctx (CDump undefined_position)
 
 and block env = function
   | BClassDefinition ct -> infer_class env ct
@@ -616,4 +706,5 @@ let init_env () =
 
 let generate_constraint b =
   let (ctx, vs, env) = init_env () in
-  (ctx (infer_program env b))
+  let env, c = infer_program env b in
+  env, ctx c

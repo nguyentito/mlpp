@@ -101,7 +101,7 @@ let bind_type_variable t env =
 
 let labels_of rtcon env =
   let p (_, (_, _, rtcon')) = rtcon = rtcon' in
-  List.(fst (split (filter p env.labels)))
+  fst (List.split (List.filter p (LMap.bindings env.labels)))
 
 let lookup_label pos l env =
   try

@@ -186,6 +186,7 @@ let header_of_binding pos tenv (Name x, ty) t =
 
 let fresh_record_name =
   let r = ref 0 in
+  (* CHECK: are you serious? Does this actually work? *)
   fun () -> incr r; Name (Printf.sprintf "_record_%d" !r)
 
 (** [intern_data_constructor adt_name env_info dcon_info] returns

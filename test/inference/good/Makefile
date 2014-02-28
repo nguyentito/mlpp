@@ -5,9 +5,10 @@ OCAMLC = ocamlc -w -P-Y-Z
 TESTS = $(shell ls *.mlt 2> /dev/null)
 RUNS = $(shell ls *_run.ml 2> /dev/null)
 
-TARGETS = $(patsubst %.mlt, %.ml, $(TESTS)) \
-	  $(patsubst %.mlt, %.cmo, $(TESTS)) \
-	  $(patsubst %_run.ml, %.out, $(RUNS))
+TARGETS = $(patsubst %.mlt, %.ml, $(TESTS))
+# TARGETS = $(patsubst %.mlt, %.ml, $(TESTS)) \
+#	  $(patsubst %.mlt, %.cmo, $(TESTS)) \
+#	  $(patsubst %_run.ml, %.out, $(RUNS))
 
 all: $(TARGETS)
 
@@ -22,25 +23,27 @@ $(JOUJOU):
 	  echo [KO] Elaboration of $<;			\
 	fi
 
-%.cmo: %.ml
-	@ if $(OCAMLC) -c $<; then 		\
-	  echo [OK] Compilation of $<;		\
-	else 					\
-	  echo [KO] Compilation of $<;		\
-	fi
+# who cares about compilation when we wanna test inference?
 
-%_run.cmo: %.cmo
+# %.cmo: %.ml
+# 	@ if $(OCAMLC) -c $<; then 		\
+# 	  echo [OK] Compilation of $<;		\
+# 	else 					\
+# 	  echo [KO] Compilation of $<;		\
+# 	fi
 
-%.run: %.cmo %_run.cmo
-	@ $(OCAMLC) -o $@ $^ # This is our source file. It must compile.
+# %_run.cmo: %.cmo
 
-%.out: %.run
-	@ if ./$<; then 			\
-	  echo [OK] Evaluation of $<;		\
-	else					\
-	  echo [KO] Evaluation of $<;		\
-	fi
-	@ touch $@
+# %.run: %.cmo %_run.cmo
+# 	@ $(OCAMLC) -o $@ $^ # This is our source file. It must compile.
+
+# %.out: %.run
+# 	@ if ./$<; then 			\
+# 	  echo [OK] Evaluation of $<;		\
+# 	else					\
+# 	  echo [KO] Evaluation of $<;		\
+# 	fi
+# 	@ touch $@
 
 clean:
 	rm -f $(TARGETS) *.cmo *.cmi *.mls *.mlse *.mle *.mlr *.out

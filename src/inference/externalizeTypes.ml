@@ -258,8 +258,6 @@ let export_class_predicate pos (k, ty) =
     (*        raise (InvalidClassPredicateInContext (pos, k)) *)
     | TyApp (_, TName x, _) ->
       let open InferenceExceptions in
-          print_string "FOOO! ";
-          print_endline x;
           raise (InvalidClassPredicateInContext (pos, k))
 
 let canonicalize_class_predicates ts cps =

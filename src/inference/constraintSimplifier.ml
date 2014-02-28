@@ -41,20 +41,7 @@ let rec head_constructor v =
 let e_expand pos pool (k, v) =
   let open Types in
   match head_constructor v with
-    | None -> begin match variable_name v with
-        | None -> ()
-        | Some (TName x) -> print_string "BAAAR! "; print_endline x
-    end;
-      None
-
-  (* begin (* Distinguish between K 'a and K int *)
-    match variable_name v with
-      | None | Some (TName s) when s.[0] = '\'' -> (* v type variable *)
-        None (* K 'a is an irreducible constraint *)
-      | Some tname ->
-        try
-          Env.lookup big_global_table.equivalences (k, tname)
-        with *)
+  | None -> None
   | Some g ->
     try
       let term, vars, expansion =
@@ -98,11 +85,7 @@ let canonicalize pos pool c =
     | Some [] -> []
     | Some expansion -> loop expansion
   in
-  let result = loop c in
-  List.iter (fun (TName k, v) -> print_string k; print_string " "; match head_constructor v with
-    | None -> print_endline "trololol"
-    | Some (TName x) ->  print_endline x) result;
-  result
+  loop c
   
 
 let add_implication k ks =

@@ -73,3 +73,7 @@ val bind_instance : instance_definition -> t -> t
 
 (** [lookup_instance pos i e] returns the instance_definition of [i] in [e]. *)
 val lookup_instance : (type_class_name * type_constr_name) -> t -> instance_definition option
+
+(** [labels_of rtcon e] returns all the labels of the record [rtcon]. *)
+val labels_of : tname -> t -> lname list
+

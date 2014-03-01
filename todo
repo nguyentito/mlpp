@@ -51,6 +51,7 @@
 
 - Refactor existing code to make it cleaner, more logical, more canonical, more beautiful
 
+- Unify the way of storing positions
 
 
    Tests

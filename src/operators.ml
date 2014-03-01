@@ -11,3 +11,5 @@ let (=<) f g = fun x -> f (g x)
 let ( *** ) f g = fun (x, y) -> (f x, g y)
 let ( &&& ) f g = fun x -> (f x, g x)
 
+
+let id : 'a. 'a -> 'a = fun x -> x

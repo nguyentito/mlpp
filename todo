@@ -53,6 +53,9 @@
 
 - Unify the way of storing positions
 
+- The target language for the elaboration should have its own AST, without typeclasses,
+  but with any additional feature from OCaml we wish to include, e.g. first-class modules,
+  which can be used as dictionaries.
 
    Tests
 -----------

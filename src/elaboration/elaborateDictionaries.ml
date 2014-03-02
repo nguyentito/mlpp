@@ -87,7 +87,7 @@ let make_gen_cl_pred (ClassPredicate (cl, var)) =
 
 
 type instance_tree = 
-| InstLeafFromEnv of instance_definition
+| InstLeafFromDef of instance_definition
 | InstLeafFromCtx of class_implication
 | InstBranch of instance_definition * instance_tree list
 and class_implication =
@@ -495,12 +495,26 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
     end ps;
     
     check_correct_context pos env (tset_of_list ts) ps;
+    (* CHECK: is this correct? *)
 
-    
-    (* is this correct? *)
+    (* TODO: factorize this *)
+    let e =
+      List.fold_right
+        (function (ClassPredicate (cl, tvar)) as cl_pred ->
+          fun next ->
+            ELambda
+              (
+                nowhere,
+                ExplicitTyping.binding
+                  Lexing.dummy_pos
+                  $ dictionary_var_name cl tvar
+                  $ Some (class_predicate_to_type cl_pred),
+                next
+              ))
+        ps
+        e
+    in
 
-    (* TODO: do something sensible when ps <> []
-       (expression elaboration) *)
     (ValueDef (pos, ts, [], b, EForall (pos, ts, e)),
      bind_scheme x ts ps ty env)
   end else begin
@@ -576,8 +590,12 @@ and superclass_accessor_type_name (TName supcl) (TName cl) =
   LName (uconcat ["superclass_field"; supcl; cl])
 
 (* TODO: if we lift restrictions, the "inst" part won't stay that simple *)
+(* TODO: replace all occurrences of this by dictionary_var_name? *)
 and superinstance_var_name (TName supinst) (TName inst) =
   Name (uconcat ["superinstance_var"; supinst; inst])
+
+and dictionary_var_name (TName cl_name) (TName tvar_name) =
+  Name (uconcat ["dictionary_var"; cl_name; tvar_name])
 
 and class_to_type_name (TName cl_name) = 
   TName (uconcat ["class_type"; cl_name]) 
@@ -826,7 +844,7 @@ and instance_definition big_env small_env inst_def =
                 (* TODO: remove this (debug) *)
                 begin
                   let rec p = function
-                    | InstLeafFromEnv instdef ->
+                    | InstLeafFromDef instdef ->
                       spconcat
                         $ List.concat [
                           ["From env: class"];
@@ -867,6 +885,8 @@ and instance_definition big_env small_env inst_def =
 
 
   (* Superinstances arguments *)
+  (* TODO: factorize this and the similar code in value_definition
+     into a single function which builds a multi-arg lambda *)
   let dict_constructor =
     List.fold_right
       (function (ClassPredicate (cl, var)) as cl_pred ->
@@ -1004,16 +1024,10 @@ and find_parent_dict_proof ctx env target =
                Empty context : leaf case
             *)
             | 0 ->
-              unwrap (fun x -> Some (InstLeafFromEnv x)) (lookup_instance (cl, constr) env)
+              unwrap (fun x -> Some (InstLeafFromDef x)) (lookup_instance (cl, constr) env)
                 
             (* Branch case (non-empty context) *)
             | _ ->
-              (* Simple check to ensure coherence *)
-              if vars = [] then
-                raise (IllKindedType nowhere);
-              (* TODO: we can do more and check the constructor's arity, that must be non zero *)
-              
-              
               let dependencies = inst.instance_typing_context 
               in
               
@@ -1036,7 +1050,7 @@ and find_parent_dict_proof ctx env target =
 (* TODO: better than index being an option type? *)
 and elaborate_parent_proof_into_expr ctx env tinstan =
   let rec f = function
-    | InstLeafFromEnv inst_def ->
+    | InstLeafFromDef inst_def ->
       EVar
         (
           nowhere,

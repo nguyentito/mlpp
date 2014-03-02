@@ -704,7 +704,6 @@ and instance_definition big_env small_env inst_def =
      also, what the hell is the name field in ERecordCon supposed to be???
      => The name field is filled with a non significant name by the parser...
   *)
-  (* FIXME: we should add the superinstances to the envs *)
   (* TODO: description *)
   let env_with_free_tvars t =
     TSet.fold bind_type_variable tvar_set 
@@ -783,6 +782,12 @@ and instance_definition big_env small_env inst_def =
   (* TODO: check that every class member is defined
      (uniqueness is already enforced) *)
 
+  (* Instantiation for the superclasses bindings *)
+  (* CHECK: instantiation: only pass tvars? *)
+  let tinst =
+    instantiation Lexing.dummy_pos $ TypeApplication (List.map (fun x -> TyVar (nowhere, x)) tvars)
+  in
+
   (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
   let dict_record = ERecordCon
     (
@@ -817,7 +822,7 @@ and instance_definition big_env small_env inst_def =
            (fun spcl ->
              RecordBinding
                (superclass_accessor_type_name spcl cname, 
-                (* TODO: remove this (debug) and return a proper expression *)
+                (* TODO: remove this (debug) *)
                 begin
                   let rec p = function
                     | InstLeafFromEnv instdef ->
@@ -853,7 +858,7 @@ and instance_definition big_env small_env inst_def =
                     (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
                     print_string $ p deriv;
                     print_newline ();
-                    elaborate_parent_proof_into_expr ctx small_env deriv
+                    elaborate_parent_proof_into_expr ctx small_env tinst deriv
                   | None -> assert false
                 end
                )
@@ -1032,6 +1037,39 @@ and find_parent_dict_proof ctx env target =
 
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)
-and elaborate_parent_proof_into_expr ctx env target =
-  (* TODO *)
-  EPrimitive (nowhere, PUnit)
+and elaborate_parent_proof_into_expr ctx env tinstan =
+  let rec f = function
+    | InstLeafFromEnv inst_def ->
+      EVar
+        (
+          nowhere,
+          instance_to_dict_name inst_def.instance_class_name inst_def.instance_index,
+          [] (* CHECK: no instanciation? Sure? *)
+        )
+    | InstLeafFromCtx class_impl ->
+      let rec handle_impl = function
+        | InstInCtx class_pred ->
+          EPrimitive(nowhere, PUnit)      (* TODO *)
+        | InstImplied _ ->(* of type_class_name * type_class_name * class_implication *)
+          EPrimitive(nowhere, PUnit)    (* TODO *)
+      in
+      handle_impl class_impl
+    | InstBranch (inst_def, deps) ->
+      let var = EVar
+        (
+          nowhere,
+          instance_to_dict_name inst_def.instance_class_name inst_def.instance_index,
+          tinstan
+        )
+      in
+
+      let args = List.map f deps
+      in
+
+      let eapp x y z = EApp (x, y, z) (* #SeemsLegit *)
+      in
+
+      List.fold_left
+        (eapp nowhere) var args
+
+  in f (* #yolo *)

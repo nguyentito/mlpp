@@ -62,10 +62,8 @@ let lookup pos x env =
     (ts, (x, ty))
   with Not_found -> raise (UnboundIdentifier (pos, x))
 
-let lookup_predicates pos x env =
-  try
-    let TyScheme (_, ps, _) = NMap.find x env.values in
-    ps
+let lookup_scheme pos x env =
+  try NMap.find x env.values
   with Not_found -> raise (UnboundIdentifier (pos, x))
 
 let bind_scheme x ts ps ty env = 
@@ -157,10 +155,7 @@ let bind_instance inst env =
     if InstanceMap.mem inst_key env.instances
     then raise (OverlappingInstances (pos, inst.instance_index))
   end;
-  let env = { env with instances = InstanceMap.add inst_key inst env.instances } in
-  env
-  (* TODO: bind the associated dictionary to the env
-     iff no superinstances *)
+  { env with instances = InstanceMap.add inst_key inst env.instances }
 
 
 (* let lookup_instance pos inst_key env = *)

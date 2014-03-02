@@ -220,9 +220,17 @@ and type_application pos env x tys =
 and expression env = function
   | EVar (pos, ((Name s) as x), tys) ->
     let ty = type_application pos env x tys in
-    let ps = lookup_predicates pos x env in
+    let (TyScheme (tvars, ps, _)) = lookup_scheme pos x env in
+    let types_assoc = List.combine tvars tys in
     let f term (ClassPredicate (k, a)) =
-      match find_parent_dict_proof env (k, PredicateTypeVar a) with
+      (* TODO: do this cleanly, and handle nesting of constructors *)
+      let target = match List.assoc a types_assoc with
+        | TyVar (_, v) -> PredicateTypeVar v
+        | TyApp (_, constr, []) -> PredicateTypeConstr (constr, [])
+        | TyApp (_, constr, [TyVar(_,v)]) -> PredicateTypeConstr (constr, [v])
+        | _ -> failwith "too complicated for me"
+      in
+      match find_parent_dict_proof env (k, target) with
         | None -> assert false (* TODO: error reporting *)
         | Some deriv ->
           (* TODO: think about tinstan = []; it's suspicious... *)
@@ -723,6 +731,8 @@ and instance_definition big_env small_env inst_def =
 
   (* new_small_env = h' + h (in subject) *)
   let new_small_env = bind_instance inst_def small_env in
+  (* Note: this is only meant to be returned! Use small_env
+     in the rest of this function *)
   let dict_constructor_type =
     let dict_type =
       TyApp (nowhere, class_to_type_name cname, [instance_type]) in
@@ -732,6 +742,11 @@ and instance_definition big_env small_env inst_def =
      also, what the hell is the name field in ERecordCon supposed to be???
      => The name field is filled with a non significant name by the parser...
   *)
+
+  (* Add typing context to environment *)
+  let big_env   = List.fold_left (flip bind_dictionary) big_env ctx
+  and small_env = List.fold_left (flip bind_dictionary) small_env ctx in
+
   (* TODO: description *)
   let env_with_free_tvars t =
     TSet.fold bind_type_variable tvar_set 
@@ -866,10 +881,8 @@ and instance_definition big_env small_env inst_def =
                     | InstBranch (inst, dep) ->
                       "Inst" ^ (* TODO *) "[" ^ (String.concat "; "(List.map p dep)) ^ "]"
                   in
-                  let deriv =
-                    find_parent_dict_proof
-                      (List.fold_left (flip bind_dictionary) small_env ctx)
-                      (spcl, PredicateTypeConstr (index, tvars))
+                  let deriv = find_parent_dict_proof small_env
+                    (spcl, PredicateTypeConstr (index, tvars))
                   in
                   match deriv with
                   | Some deriv ->

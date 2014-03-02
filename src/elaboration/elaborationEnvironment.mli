@@ -89,3 +89,6 @@ val bind_dictionary : class_predicate -> t -> t
     of a dictionary variable for the predicate [p] *)
 val lookup_dictionary : class_predicate -> t -> bool
 
+(** Returns a list of all dictionaries *)
+val dictionaries : t -> class_predicates
+

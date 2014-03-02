@@ -146,6 +146,8 @@ let bind_dictionary p env =
 let lookup_dictionary p env =
   DictSet.mem p env.dictionaries
 
+let dictionaries env = DictSet.elements env.dictionaries
+
 let bind_instance inst env =
   let pos = inst.instance_position
   and inst_key = (inst.instance_class_name, inst.instance_index) in

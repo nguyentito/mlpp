@@ -221,9 +221,13 @@ and expression env = function
   | EVar (pos, ((Name s) as x), tys) ->
     let ty = type_application pos env x tys in
     let ps = lookup_predicates pos x env in
-    let f term (ClassPredicate (k, a) as p) =
-      (* TODO: dict *)
-      EApp (pos, term, assert false)
+    let f term (ClassPredicate (k, a)) =
+      match find_parent_dict_proof env (k, PredicateTypeVar a) with
+        | None -> assert false (* TODO: error reporting *)
+        | Some deriv ->
+          (* TODO: think about tinstan = []; it's suspicious... *)
+          let dict = elaborate_parent_proof_into_expr env [] deriv in
+          EApp (pos, term, dict)
     in
     (List.fold_left f (EVar (pos, x, tys)) ps, ty)
     
@@ -479,28 +483,27 @@ and eforall pos ts e =
 (***** Modifying this for the project *****)
 
 and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
-  let env' = introduce_type_parameters env ts in
   check_wf_scheme env ts xty;
 
   if is_value_form e then begin
-    let e = eforall pos ts e in
-    (* TODO: add class constraints to local typing environment *)
-    let e, ty = expression env' e in
-    let b = (x, ty) in
-    check_equal_types pos xty ty;
 
     (* Checks wrt typeclasses *)
-
-    let ty_vars = type_variable_set ty in
+    let ty_vars = type_variable_set xty in
     List.iter begin fun (ClassPredicate (_, a)) ->
       if not (TSet.mem a ty_vars)
       (* unreachable constraint!
          TODO: think about adding a specific exception for that *)
       then raise (InvalidOverloading pos)
     end ps;
-    
     check_correct_context pos env (tset_of_list ts) ps;
     (* CHECK: is this correct? *)
+
+    let e = eforall pos ts e in
+    let env' = introduce_type_parameters env ts in
+    let env' = List.fold_left (flip bind_dictionary) env' ps in
+    let e, ty = expression env' e in
+    let b = (x, ty) in
+    check_equal_types pos xty ty;
 
     (* TODO: factorize this *)
     let e =
@@ -527,7 +530,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
       raise (ValueRestriction pos)
     else
       let e = eforall pos [] e in
-      let e, ty = expression env' e in
+      let e, ty = expression env e in
       let b = (x, ty) in
       check_equal_types pos xty ty;
       (ValueDef (pos, [], [], b, e), bind_simple x ty env)
@@ -864,7 +867,8 @@ and instance_definition big_env small_env inst_def =
                       "Inst" ^ (* TODO *) "[" ^ (String.concat "; "(List.map p dep)) ^ "]"
                   in
                   let deriv =
-                    find_parent_dict_proof ctx small_env 
+                    find_parent_dict_proof
+                      (List.fold_left (flip bind_dictionary) small_env ctx)
                       (spcl, PredicateTypeConstr (index, tvars))
                   in
                   match deriv with
@@ -872,7 +876,7 @@ and instance_definition big_env small_env inst_def =
                     (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
                     print_string $ p deriv;
                     print_newline ();
-                    elaborate_parent_proof_into_expr ctx small_env tinst deriv
+                    elaborate_parent_proof_into_expr small_env tinst deriv
                   | None -> assert false
                 end
                )
@@ -938,7 +942,7 @@ and check_correct_context pos env tvar_set ctx =
 (* Following function finds a proof derivation for the target class in the given context *)
 (* The following functions have simple forms thanks to the simplification of the class system *)
 (* TODO: try to add more position information (remove as much nowheres as possible) *)
-and find_parent_dict_proof ctx env target =
+and find_parent_dict_proof env target =
   let unwrap = Misc.unwrap_res_or_die
   and unwrap_list = Misc.unwrap_res_or_die_list
   in
@@ -1002,7 +1006,7 @@ and find_parent_dict_proof ctx env target =
         (fun map -> function (ClassPredicate (cl, var) as cl_pred) ->
           ClassMap.add (cl, var) (InstInCtx cl_pred) map)
         ClassMap.empty
-        ctx
+        (dictionaries env)
   in
 
   let rec loop (cl, target) =
@@ -1058,7 +1062,7 @@ and find_parent_dict_proof ctx env target =
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)
 (* TODO: better than index being an option type? *)
-and elaborate_parent_proof_into_expr ctx env tinstan =
+and elaborate_parent_proof_into_expr env tinstan =
   let rec f = function
     | InstLeafFromDef inst_def ->
       EVar

@@ -11,9 +11,9 @@ import System.IO
 import System.Process (system)
 import Text.Printf
 
--- TODO: add Compilation to fully test it
 data TestCategory = Inference
                   | Elaboration
+                  | Compilation
                   deriving (Eq, Show)
 
 runTest cmd path = do
@@ -29,11 +29,16 @@ runTests category isGood testCmd = do
   fileList <- sort . filter relevant <$> getDirectoryContents dir
   let pathList = map (dir ++) fileList
   results <- mapM (runTest (testCmd ++ flag)) pathList
+  let numSuccesses = length $ filter id results
+      numFailures  = length $ filter not results
   putStrLn $ "Summary for " ++ dir ++ ":"
+  putStrLn $ show numSuccesses ++ " successes, " ++ show numFailures ++ " failures."
   mapM_ (putStrLn . uncurry (++) . first oko) $ zip results fileList
     where relevant filename
-            | ".mlt" `isSuffixOf` filename = category == Inference
-            | ".mle" `isSuffixOf` filename = category == Elaboration
+            | ".mlt" `isSuffixOf` filename =
+              category `elem` [Inference, Compilation]
+            | ".mle" `isSuffixOf` filename =
+                category == Elaboration
             | otherwise = False
           dir = subdir category isGood
           posneg = if isGood then "Positive" else "Negative"
@@ -42,6 +47,7 @@ runTests category isGood testCmd = do
           flag = case category of
             Inference   -> " --inference-only" -- don't forget the space!
             Elaboration -> " --elaboration-only"
+            Compilation -> " --compile-with-ocaml"
 
 catName = map toLower . show
 subdir category isGood =
@@ -51,6 +57,7 @@ cleanDir category isGood = do
   let dir = subdir category isGood
   let exts Inference   = ["mle"]
       exts Elaboration = ["mlr"]
+      exts Compilation = ["mle", "mlr", "ml"]
   let f ext = system $ "rm " ++ dir ++ "*." ++ ext
   mapM_ f $ exts category
 
@@ -66,6 +73,7 @@ main = do
   category <- case args !! 0 of
     "inference"   -> pure Inference
     "elaboration" -> pure Elaboration
+    "compilation" -> pure Compilation
     _ -> failWithUsage
   isGood <- case args !! 1 of
     "good" -> pure True

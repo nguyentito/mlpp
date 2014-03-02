@@ -11,11 +11,12 @@ let print_version () =
 
 let flags_table = Hashtbl.create 12
 (* TODO: descriptions for the flags *)
-let flags = ["parsing-only"    , "Parse only";
+let flags = ["parsing-only"    , " Parse only";
              "inference-only"  , "";
              "elaboration-only", "";
              "implicitly-typed", "";
-             "explicitly-typed", ""]
+             "explicitly-typed", "";
+             "compile-with-ocaml", ""]
 let set_flag fl = Hashtbl.add flags_table fl ()
 let flags_option_list =
   List.map (fun (fl, desc) ->
@@ -26,7 +27,7 @@ let flag_enabled = Hashtbl.mem flags_table
 
 let option_list = Arg.align $ flags_option_list @ [
   "--version", Arg.Unit print_version,
-               "Display the version number."
+               " Display the version number."
 ]
 
 
@@ -64,6 +65,9 @@ let filename =
 
 let _ = if flag_enabled "explicitly-typed" && flag_enabled "inference-only"
   then warning "'--inference-only' makes no sense for an explicitly-typed file. This flag will be ignored."
+
+let _ = if not (flag_enabled "compile-with-ocaml")
+  then set_flag "dont-compile-with-ocaml"
 
 
 type filename = Filename of string
@@ -126,6 +130,9 @@ let compile : (XAST.program, unit) pass
   ((), ASTio.XAST.pprint_program_in_ocaml xast)
 )
 
+let compile_with_ocaml _ (Filename filename) =
+  let code = Sys.command $ "ocamlc -w -P-Y-Z " ^ Filename.chop_extension filename ^ ".ml" in
+  exit code
 
 let unless fl pass = if flag_enabled fl then fun _ _ -> exit 0 else pass
 
@@ -136,11 +143,13 @@ let () =
       parse_explicitly_typed
         $> unless "parse-only"       elaborate_dictionaries
         $> unless "elaboration-only" compile
+        $> unless "dont-compile-with-ocaml" compile_with_ocaml
     | () when flag_enabled "implicitly-typed" ->
       parse 
         $> unless "parse-only"       elaborate_type_annotations
         $> unless "inference-only"   elaborate_dictionaries
         $> unless "elaboration-only" compile
+        $> unless "dont-compile-with-ocaml" compile_with_ocaml
     | () -> assert false
   in 
   pipeline () (Filename filename)

@@ -943,7 +943,17 @@ and find_parent_dict_proof ctx env target =
   and unwrap_list = Misc.unwrap_res_or_die_list
   in
 
-  let module ClassMap = Map.Make(OrderedTName) in
+  let module ClassMap = Map.Make(
+    struct
+      type t = type_class_name * type_var_name
+      (* TODO: improve ↓ *)
+      let compare (x1, y1) (x2, y2) =
+        match OrderedTName.compare x1 x2 with
+        | 0 ->
+          OrderedTName.compare y1 y2
+        | n -> n
+    end)
+  in
 
   
   (* Map indicating the shortest path to a given superclass *)
@@ -967,15 +977,14 @@ and find_parent_dict_proof ctx env target =
     in
 
     let one_step_superclasses instances =
-    (* We massively use the fact classes have a single parameters #OhNoYouDidnt *)
       ClassMap.fold
-        (fun cl deriv map ->
+        (fun (cl, var) deriv map ->
           let class_def = lookup_class nowhere cl env in
           (* Look in current class's superclasses and add unkown ones *)
           List.fold_left (* List.fold_left and Map.fold don't have the same parameter order #swog *)
             (fun submap scl ->
-              if not $ ClassMap.mem scl submap then
-                ClassMap.add scl (InstImplied (scl, cl, deriv)) submap
+              if not $ ClassMap.mem (scl, var) submap then
+                ClassMap.add (scl, var) (InstImplied (scl, cl, deriv)) submap
               else
                 submap
             )
@@ -989,8 +998,9 @@ and find_parent_dict_proof ctx env target =
     (* Add context and start fixpoint computation *)
     fixpoint one_step_superclasses
       $ List.fold_left
-        (fun map -> function (ClassPredicate (cl, _)) as cl_pred ->
-          ClassMap.add cl (InstInCtx cl_pred) map)
+        (* Not able to match the pair with a single id #swog *)
+        (fun map -> function (ClassPredicate (cl, var) as cl_pred) ->
+          ClassMap.add (cl, var) (InstInCtx cl_pred) map)
         ClassMap.empty
         ctx
   in
@@ -1000,7 +1010,7 @@ and find_parent_dict_proof ctx env target =
     | PredicateTypeVar v ->
       begin
         (* Ocaml's map uses exception #NoKidding *)
-        try Some (InstLeafFromCtx (ClassMap.find cl superinstances_superclasses)) with
+        try Some (InstLeafFromCtx (ClassMap.find (cl, v) superinstances_superclasses)) with
         | Not_found -> None
       end
 

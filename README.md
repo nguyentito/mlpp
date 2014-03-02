@@ -28,21 +28,41 @@ separately clean the pretty-printer (in
 Testing
 -------
 
-Negative tests:
+To use the tests, first enter the directory `test`, which contains
+the script `run-tests.hs`
 
-    cd test/elaboration/bad/
-    make
+### Negative tests
+
+    runhaskell run-tests.hs elaboration bad
 
 This runs the program on every `.mle` file in the directory and
-displays a formatted log of the test results. OK means test successful
-i.e. the test file was rejected (since these are negative tests).
+displays a formatted log of the test results. 
 
-Positive tests:
+When the compiler has returned with exit code 0, `[[Success]]` is
+displayed, otherwise `[[Failure]]` is displayed. In the summary `[OK]`
+means test successful i.e. the test file was rejected (since these are
+negative tests). So `[[Failure]]` -> `[OK]` and `[[Success]]` ->
+`[KO]`.
 
-    cd test/elaboration/good/
-    make
+To test inference, run
 
-Pretty much the same thing.
+    runhaskell run-tests.hs inference bad
+
+Note that when testing inference, `--inference-only` is activated: the
+program won't bother with elaboration.
+     
+### Positive tests
+
+    runhaskell run-tests.hs inference good
+    runhaskell run-tests.hs inference bad
+
+Pretty much the same thing, except `[[Success]]` and `[OK]` match.
+
+### Cleaning up
+
+    runhaskell run-tests.hs (inference|elaboration) (good|bad) clean
+
+Deletes the generated `.mle`/`.mlr` files.
 
 
 Source code documentation

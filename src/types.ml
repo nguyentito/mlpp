@@ -17,6 +17,11 @@ type (* #wtf *) t =
   | TyVar        of position * type_var_name
   | TyApp        of position * type_constr_name * t list
 
+(* TODO: t (here ↑) has to depend on the following type *)
+type mltype' =
+  | TyVar' of type_var_name
+  | TyApp' of type_constr_name * mltype' list
+
 type scheme = TyScheme of type_var_name list * class_predicates * t
 
 and class_predicate = ClassPredicate of type_class_name * type_var_name

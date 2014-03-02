@@ -16,6 +16,13 @@ type t =
   | TyVar        of position * type_var_name
   | TyApp        of position * type_constr_name * t list
 
+
+type mltype' =
+  | TyVar' of type_var_name
+  | TyApp' of type_constr_name * mltype' list
+ (* TyPonch *)
+
+
 (** Type schemes. *)
 type scheme = TyScheme of type_var_name list * class_predicates * t
 

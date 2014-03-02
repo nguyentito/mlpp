@@ -69,21 +69,12 @@ type dict_request_source =
     type_class_name * type_constr_name * (type_var_name list)
 
 
-(* Type that represents *any* class predicate.
-   More exactly, it covers the following cases: 
-   the type can be:
-   - a simple type variable
-   TODO: wrong ↓
-   - built from a single {0,1}-ary type constructor and (possibly) a type variable) 
-*)
-type general_class_predicate =  type_class_name * predicate_target
-and predicate_target = 
-| PredicateTypeVar of type_var_name
-| PredicateTypeConstr of type_constr_name * type_var_name list
+(* Type that represents *any* class predicate (no hypothesis is made on the involved type).*)
+type general_class_predicate =  type_class_name * mltype' (* predicate_target *)
 
 
 let make_gen_cl_pred (ClassPredicate (cl, var)) =
-  cl, PredicateTypeVar var
+  cl, TyVar' var
 
 
 type instance_tree = 
@@ -222,7 +213,7 @@ and expression env = function
     let ty = type_application pos env x tys in
     let ps = lookup_predicates pos x env in
     let f term (ClassPredicate (k, a)) =
-      match find_parent_dict_proof env (k, PredicateTypeVar a) with
+      match find_parent_dict_proof env (k, TyVar' a) with
         | None -> assert false (* TODO: error reporting *)
         | Some deriv ->
           (* TODO: think about tinstan = []; it's suspicious... *)
@@ -869,7 +860,7 @@ and instance_definition big_env small_env inst_def =
                   let deriv =
                     find_parent_dict_proof
                       (List.fold_left (flip bind_dictionary) small_env ctx)
-                      (spcl, PredicateTypeConstr (index, tvars))
+                      (spcl, TyApp' (index, List.map (fun c'mon -> TyVar' c'mon) tvars))
                   in
                   match deriv with
                   | Some deriv ->
@@ -1011,14 +1002,14 @@ and find_parent_dict_proof env target =
 
   let rec loop (cl, target) =
     match target with
-    | PredicateTypeVar v ->
+    | TyVar' v ->
       begin
         (* Ocaml's map uses exception #NoKidding *)
         try Some (InstLeafFromCtx (ClassMap.find (cl, v) superinstances_superclasses)) with
         | Not_found -> None
       end
 
-    | PredicateTypeConstr (constr, vars) ->
+    | TyApp' (constr, vars) ->
       let cstr_inst = lookup_instance (cl, constr) env 
       in
 

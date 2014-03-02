@@ -501,7 +501,6 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
     let env' = introduce_type_parameters env ts in
     let env' = List.fold_left (flip bind_dictionary) env' ps in
     let e, ty = expression env' e in
-    let b = (x, ty) in
     check_equal_types pos xty ty;
 
     (* TODO: factorize this *)
@@ -520,10 +519,11 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
               ))
         ps
         e
+    and ty = ntyarrow nowhere (List.map class_predicate_to_type ps) ty
     in
-
-    (ValueDef (pos, ts, [], b, EForall (pos, ts, e)),
+    (ValueDef (pos, ts, [], (x, ty), EForall (pos, ts, e)),
      bind_scheme x ts ps ty env)
+
   end else begin
     if ts <> [] then
       raise (ValueRestriction pos)
@@ -652,8 +652,8 @@ and check_unrelated_superclasses pos env k1 k2 =
     raise (TheseTwoClassesMustNotBeInTheSameContext (pos, k1, k2))
 
 and superclass_dictionary_field tvar cname sc_name =
-  let field_name = superclass_accessor_type_name cname sc_name in
-  (* for instance, _Eq_Ord *)
+  let field_name = superclass_accessor_type_name sc_name cname in
+  (* for instance, _Ord_Eq *)
   (nowhere, field_name, class_to_dict_type sc_name tvar)
 
 and class_member cname tvar env (pos, l, ty) =
@@ -849,7 +849,7 @@ and instance_definition big_env small_env inst_def =
         (List.map 
            (fun spcl ->
              RecordBinding
-               (superclass_accessor_type_name spcl cname, 
+               (superclass_accessor_type_name spcl cname,
                 (* TODO: remove this (debug) *)
                 begin
                   let rec p = function
@@ -906,7 +906,7 @@ and instance_definition big_env small_env inst_def =
               nowhere,
               ExplicitTyping.binding
                 Lexing.dummy_pos
-                $ superinstance_var_name cl index
+                $ dictionary_var_name cl var
                 $ Some (class_predicate_to_type cl_pred),
               next
             ))

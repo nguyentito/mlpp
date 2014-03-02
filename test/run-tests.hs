@@ -57,7 +57,7 @@ cleanDir category isGood = do
   let dir = subdir category isGood
   let exts Inference   = ["mle"]
       exts Elaboration = ["mlr"]
-      exts Compilation = ["mle", "mlr", "ml"]
+      exts Compilation = ["mle", "mlr", "ml", "cmo", "cmi"]
   let f ext = system $ "rm " ++ dir ++ "*." ++ ext
   mapM_ f $ exts category
 

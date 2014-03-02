@@ -70,18 +70,17 @@ type dict_request_source =
 
 
 (* Type that represents *any* class predicate (no hypothesis is made on the involved type).*)
-type general_class_predicate =  type_class_name * mltype' (* predicate_target *)
+type general_class_predicate =  type_class_name * mltype (* predicate_target *)
 
 
 let make_gen_cl_pred (ClassPredicate (cl, var)) =
-  cl, TyVar' var
+  cl, TyVar (nowhere, var)
 
 
 type instance_tree = 
-| InstLeafFromDef of instance_definition
+| InstLeafFromDef of instance_definition * instantiation
 | InstLeafFromCtx of class_implication
-(* TODO: the branch must store a substitution for the type variable correspondance *)
-| InstBranch of instance_definition * instance_tree list
+| InstBranch of instance_definition * instantiation * instance_tree list
 and class_implication =
 | InstInCtx of class_predicate (* Class predicate actually in context *)
 | InstImplied of type_class_name * type_class_name * class_implication
@@ -215,18 +214,11 @@ and expression env = function
     let (TyScheme (tvars, ps, _)) = lookup_scheme pos x env in
     let types_assoc = List.combine tvars tys in
     let f term (ClassPredicate (k, a)) =
-      (* TODO: do this cleanly, and handle nesting of constructors *)
-      let target = match List.assoc a types_assoc with
-        | TyVar (_, v) -> TyVar' v
-        | TyApp (_, constr, []) -> TyApp' (constr, [])
-        | TyApp (_, constr, [TyVar(_,v)]) -> TyApp' (constr, [TyVar' v])
-        | _ -> failwith "too complicated for me"
-      in
+      let target = List.assoc a types_assoc in
       match find_parent_dict_proof env (k, target) with
         | None -> assert false (* TODO: error reporting *)
         | Some deriv ->
-          (* TODO: think about tinstan = []; it's suspicious... *)
-          let dict = elaborate_parent_proof_into_expr env [] deriv in
+          let dict = elaborate_parent_proof_into_expr env deriv in
           EApp (pos, term, dict)
     in
     (List.fold_left f (EVar (pos, x, tys)) ps, ty)
@@ -797,7 +789,7 @@ and instance_definition big_env small_env inst_def =
   (* TODO: what if an instance member matches no class member? *)
   let augmented_members_set =
     (* Find corresponding class member and add its type,
-       instanciated at the instance type, to form the pair (member, type) *)
+       instantiated at the instance type, to form the pair (member, type) *)
     (* TODO: how to handle free variables after substitution? *)
     let subst = Types.substitute [(class_def.class_parameter, instance_type)] in
     let f (RecordBinding (name, _)) =
@@ -808,14 +800,8 @@ and instance_definition big_env small_env inst_def =
     MP.map (id &&& f)  members_set
   in
 
-  (* TODO: check that every class member is defined
+  (* CHECK: check that every class member is defined
      (uniqueness is already enforced) *)
-
-  (* Instantiation for the superclasses bindings *)
-  (* CHECK: instantiation: only pass tvars? *)
-  let tinst =
-    instantiation Lexing.dummy_pos $ TypeApplication (List.map (fun x -> TyVar (nowhere, x)) tvars)
-  in
 
   (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
   let dict_record = ERecordCon
@@ -854,7 +840,7 @@ and instance_definition big_env small_env inst_def =
                 (* TODO: remove this (debug) *)
                 begin
                   let rec p = function
-                    | InstLeafFromDef instdef ->
+                    | InstLeafFromDef (instdef, _) ->
                       spconcat
                         $ List.concat [
                           ["From env: class"];
@@ -870,12 +856,13 @@ and instance_definition big_env small_env inst_def =
                         | InstImplied (TName cl1, _, imp) ->  cl1 ^ " => " ^ (f imp)
                       in
                       spconcat ["From ctx:"; f impl]
-                    | InstBranch (inst, dep) ->
+                    | InstBranch (inst, _, dep) ->
                       "Inst" ^ (* TODO *) "[" ^ (String.concat "; "(List.map p dep)) ^ "]"
                   in
 
                   let deriv = find_parent_dict_proof small_env
-                    (spcl, TyApp' (index, List.map (fun oh_c'mon -> TyVar' oh_c'mon) tvars))
+                    (spcl, TyApp (nowhere, index,
+                                  List.map (fun oh_c'mon -> TyVar (nowhere, oh_c'mon)) tvars))
 
                   in
                   match deriv with
@@ -883,7 +870,7 @@ and instance_definition big_env small_env inst_def =
                     (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
                     print_string $ p deriv;
                     print_newline ();
-                    elaborate_parent_proof_into_expr small_env tinst deriv
+                    elaborate_parent_proof_into_expr small_env deriv
                   | None -> assert false
                 end
                )
@@ -1018,14 +1005,14 @@ and find_parent_dict_proof env target =
 
   let rec loop (cl, target) =
     match target with
-    | TyVar' v ->
+    | TyVar (_, v) ->
       begin
         (* Ocaml's map uses exception #NoKidding *)
         try Some (InstLeafFromCtx (ClassMap.find (cl, v) superinstances_superclasses)) with
         | Not_found -> None
       end
 
-    | TyApp' (constr, subtypes) ->
+    | TyApp (_, constr, args) ->
       let cstr_inst = lookup_instance (cl, constr) env 
       in
 
@@ -1033,54 +1020,28 @@ and find_parent_dict_proof env target =
       begin
         match cstr_inst with
         | None -> None
-        | Some inst ->
-          (* let arity = arity_of_kind (lookup_type_kind nowhere constr env) *)
-          (* in *)
-          let ctx_size = List.length inst.instance_typing_context
-          in
-
-          begin
-            match ctx_size with
+        | Some inst -> begin
+          let ctx = inst.instance_typing_context in
+          match List.length ctx with
             (* 
                Empty context : leaf case
             *)
-            | 0 ->
-              unwrap (fun x -> Some (InstLeafFromDef x)) (lookup_instance (cl, constr) env)
+            | 0 -> Some (InstLeafFromDef (inst, args))
                 
             (* Branch case (non-empty context) *)
             | _ ->
               
-              (* Function that recursively computes dependencies and substitutions
-                 depending on the shape of subtypes.
-                 For instance, if your instance is (('a G) G'), you  have ('a G) 
-                 as a subtype; thus, you need to add ('a G) as a dependency, and
-                 a substitution ['b -> 'a G] *)
-              let rec get_dep_and_subst = function ->
-                | [] -> [], []
-                | [subtype :: tail] ->
-                  let tdep, tsubst = get_dep_and_subst tail
-                  in
-                  
-                  let cur_dep, cur_subst =
-                    match subtype with
-                    | TyVar' v -> 
-                      inst.instance_typing_context,
-                    (* TODO *)
-                    | TyApp' (cst, subsubtypes) ->
-                  (* TODO *)
-                  in
-                      
-                  cur_dep :: tdep, cur_subst :: tsubst
+              let tvars = inst.instance_parameters in
+              (* CHECK: can List.combine fail? *)
+              let tvars_assoc = List.combine tvars args in
+              let dependencies =
+                (* TODO: does this exist elsewhere? If so, factorize... *)
+                let f (ClassPredicate (k, a)) = (k, List.assoc a tvars_assoc) in
+                List.map f ctx
               in
+              let new_targets = List.map (fun x -> Some x) dependencies in
 
-              let dependencies, subs = get_dep_and_subst subtypes
-              in
-
-              let new_targets = List.map (fun x -> Some (make_gen_cl_pred x)) dependencies
-              in
-
-              (* TODO: manage the substitution also *)
-              unwrap (fun e -> Some (InstBranch (inst, e))) 
+              unwrap (fun e -> Some (InstBranch (inst, args, e))) 
                 $ unwrap_list loop new_targets
 
           end
@@ -1094,14 +1055,14 @@ and find_parent_dict_proof env target =
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)
 (* TODO: better than index being an option type? *)
-and elaborate_parent_proof_into_expr env tinstan =
+and elaborate_parent_proof_into_expr env =
   let rec f = function
-    | InstLeafFromDef inst_def ->
+    | InstLeafFromDef (inst_def, instantiation) ->
       EVar
         (
           nowhere,
           instance_to_dict_name inst_def.instance_class_name inst_def.instance_index,
-          [] (* CHECK: no instanciation? Sure? *)
+          instantiation
         )
     | InstLeafFromCtx class_impl ->
       let rec handle_impl = function
@@ -1110,7 +1071,7 @@ and elaborate_parent_proof_into_expr env tinstan =
             (
               nowhere,
               dictionary_var_name cl var,
-              tinstan (* CHECK *)
+              []
             )
         | InstImplied (supcl, cl, impl) ->
           ERecordAccess
@@ -1121,12 +1082,12 @@ and elaborate_parent_proof_into_expr env tinstan =
             )
       in
       handle_impl class_impl
-    | InstBranch (inst_def, deps) ->
+    | InstBranch (inst_def, instantiation, deps) ->
       let var = EVar
         (
           nowhere,
           instance_to_dict_name inst_def.instance_class_name inst_def.instance_index,
-          tinstan
+          instantiation
         )
       in
 

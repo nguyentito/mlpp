@@ -54,8 +54,8 @@ program won't bother with elaboration.
      
 #### Positive tests
 
+    runhaskell run-tests.hs elaboration good
     runhaskell run-tests.hs inference good
-    runhaskell run-tests.hs inference bad
 
 Pretty much the same thing, except `[[Success]]` and `[OK]` match.
 

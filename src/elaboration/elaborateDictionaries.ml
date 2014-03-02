@@ -1059,14 +1059,11 @@ and elaborate_parent_proof_into_expr ctx env tinstan =
         )
     | InstLeafFromCtx class_impl ->
       let rec handle_impl = function
-        | InstInCtx (ClassPredicate (cl, _)) ->
+        | InstInCtx (ClassPredicate (cl, var)) ->
           EVar
             (
               nowhere,
-              Name "wtf"
-                (* FIXME: new name *)
-                (* superinstance_var_name cl index *)
-                ,
+              dictionary_var_name cl var,
               tinstan (* CHECK *)
             )
         | InstImplied (supcl, cl, impl) ->

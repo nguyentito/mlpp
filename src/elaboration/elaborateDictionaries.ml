@@ -512,9 +512,11 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
               ))
         ps
         e
-    and ty = ntyarrow nowhere (List.map class_predicate_to_type ps) ty
+    and ty_elaborated = ntyarrow nowhere (List.map class_predicate_to_type ps) ty
     in
-    (ValueDef (pos, ts, [], (x, ty), EForall (pos, ts, e)),
+    (* /!\ The piece of AST we produce should have an elaborated type,
+       but the type schem we add to the environment is the original one! *)
+    (ValueDef (pos, ts, [], (x, ty_elaborated), EForall (pos, ts, e)),
      bind_scheme x ts ps ty env)
 
   end else begin

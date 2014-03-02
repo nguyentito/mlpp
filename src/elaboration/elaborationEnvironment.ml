@@ -17,6 +17,11 @@ module InstanceMap = Map.Make
     end
   )
 
+module DictSet = Set.Make (struct
+    type t = class_predicate
+    let compare = compare
+end)
+  
 (*
 type t = {
    values       : (tnames * binding) list;
@@ -32,13 +37,15 @@ type t = {
   labels       : (tnames * Types.t * tname) LMap.t;
   classes      : class_definition TMap.t;
   instances    : instance_definition InstanceMap.t
+  dictionaries : name DictSet.t
 }
 
-let empty = { values    = NMap.empty;
-              types     = TMap.empty;
-              classes   = TMap.empty;
-              labels    = LMap.empty;
-              instances = InstanceMap.empty }
+let empty = { values       = NMap.empty;
+              types        = TMap.empty;
+              classes      = TMap.empty;
+              labels       = LMap.empty;
+              instances    = InstanceMap.empty;
+              dictionaries = DictSet.empty }
 
 (* TODO: modify values and lookup + occurrences in ElaborateDictionaries
    for now, we have something which maintains compatibility
@@ -127,6 +134,12 @@ let initial =
     (TName "unit", KStar)
   ]
 
+let bind_dictionary p env = 
+  { env with dictionaries = DictSet.add p env }
+
+let lookup_dictionary p env =
+  DictSet.mem env.dictionaries p
+
 let bind_instance inst env =
   let pos = inst.instance_position
   and inst_key = (inst.instance_class_name, inst.instance_index) in
@@ -136,7 +149,8 @@ let bind_instance inst env =
     if InstanceMap.mem inst_key env.instances
     then raise (OverlappingInstances (pos, inst.instance_index))
   end;
-  { env with instances = InstanceMap.add inst_key inst env.instances }
+  let env = { env with instances = InstanceMap.add inst_key inst env.instances } in
+  if inst
 
 
 (* let lookup_instance pos inst_key env = *)
@@ -158,3 +172,4 @@ let lookup_instance inst_key env =
       
   (* CHECK: i'm not sure this is the right exception *)
   with Not_found -> None
+

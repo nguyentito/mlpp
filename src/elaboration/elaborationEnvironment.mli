@@ -49,6 +49,9 @@ val bind_type : tname -> Types.kind -> type_definition -> t -> t
 (** [bind_type_variable x e] introduces the type variable [x] in [e]. *)
 val bind_type_variable : tname -> t -> t
 
+(** [labels_of rtcon e] returns all the labels of the record [rtcon]. *)
+val labels_of : tname -> t -> lname list
+
 (** [lookup_class pos c e] returns the class_definition of [c] in [e]. *)
 val lookup_class : position -> tname -> t -> class_definition
 
@@ -68,12 +71,18 @@ val bind_label : position -> lname -> tnames -> Types.t -> tname -> t -> t
     the record type constructor of the label [l] in [e]. *)
 val lookup_label : position -> lname -> t -> tnames * Types.t * tname
 
-(** [bind_instance pos i e] adds the instance [i] to the environment [e] *)
+(** [bind_instance i e] adds the instance [i] to the environment [e] *)
 val bind_instance : instance_definition -> t -> t
 
-(** [lookup_instance pos i e] returns the instance_definition of [i] in [e]. *)
-val lookup_instance : (type_class_name * type_constr_name) -> t -> instance_definition option
+(** [lookup_instance i e] returns the instance_definition of [i] in [e]. *)
+val lookup_instance
+  : (type_class_name * type_constr_name) -> t -> instance_definition option
 
-(** [labels_of rtcon e] returns all the labels of the record [rtcon]. *)
-val labels_of : tname -> t -> lname list
+(** [bind_dictionary p e] tells the environment [e] a dictionary variable
+    for the predicate [p] exists *)
+val bind_dictionary : class_predicate -> t -> t
+
+(** [lookup_dictionary p e] asks the environment [e] about the existence
+    of a dictionary variable for the predicate [p] *)
+val lookup_dictionary : class_predicate -> t -> bool
 

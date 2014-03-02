@@ -21,17 +21,18 @@ Compilation
 
 This results in an executable named `joujou` in `src/`.
 
-To clean the build files, just do `make clean`. Note: you have to
-separately clean the pretty-printer (in
-`parsing/pprint-20130324/src/`).
+To clean the build files, just do `make clean`.
+
+The build system is now completely based on ocamlbuild, which makes
+life a lot easier!
 
 Testing
 -------
 
 To use the tests, first enter the directory `test`, which contains
-the script `run-tests.hs`
+the script `run-tests.hs`.
 
-### Negative tests
+#### Negative tests
 
     runhaskell run-tests.hs elaboration bad
 
@@ -51,14 +52,14 @@ To test inference, run
 Note that when testing inference, `--inference-only` is activated: the
 program won't bother with elaboration.
      
-### Positive tests
+#### Positive tests
 
     runhaskell run-tests.hs inference good
     runhaskell run-tests.hs inference bad
 
 Pretty much the same thing, except `[[Success]]` and `[OK]` match.
 
-### Cleaning up
+#### Cleaning up
 
     runhaskell run-tests.hs (inference|elaboration) (good|bad) clean
 

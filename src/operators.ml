@@ -11,5 +11,7 @@ let (=<) f g = fun x -> f (g x)
 let ( *** ) f g = fun (x, y) -> (f x, g y)
 let ( &&& ) f g = fun x -> (f x, g x)
 
+(* Useful functions for point-free definitions *)
 let flip f = fun x y -> f y x
+let id : 'a. 'a -> 'a = fun x -> x
 

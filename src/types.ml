@@ -13,7 +13,7 @@ type type_class_name = tname
 
 (* TODO: rename this! Why the f*ck would you ever name a potentially
    de facto top-level type "t"!?!? *)
-type t =
+type (* #wtf *) t =
   | TyVar        of position * type_var_name
   | TyApp        of position * type_constr_name * t list
 
@@ -156,7 +156,7 @@ let lset_of_list l =
   List.fold_left (fun acc x -> LSet.add x acc) LSet.empty l
 
 let lset_of_unique_list l =
-  (* CHECK: other way to define a local exception? *)
+  (* Local exception in ocaml #IAmAwesome *)
   let module M = struct exception NotUnique end in
   let open M in
 

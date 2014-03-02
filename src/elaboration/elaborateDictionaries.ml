@@ -87,8 +87,14 @@ let make_gen_cl_pred (ClassPredicate (cl, var)) =
 
 type instance_tree = 
 | InstLeafFromEnv of instance_definition
-| InstLeafFromCtx of class_predicate
+| InstLeafFromCtx of class_implication
 | InstBranch of instance_definition * instance_tree list
+and class_implication =
+| InstInCtx of class_predicate (* Class predicate actually in context *)
+| InstImplied of type_class_name * type_class_name * class_implication
+    (* InstImplied (X, Y, imp) means that we have X => Y (X is a superclass of Y) and
+       that imp is an "implication" for Y (actually, when we have X => Y, the implication
+       is in the other way: Y "implies" X) *)
 
 
 (* Entry point of the module *)
@@ -563,11 +569,18 @@ and is_value_form = function
 (* TODO: find better names (bitch!) *)
 and sconcat = String.concat ""
 and uconcat = String.concat "_"
+and spconcat = String.concat " "
+
 and superclass_accessor_type_name (TName supcl) (TName cl) =
   LName (uconcat ["superclass_field"; supcl; cl])
+
+(* TODO: if we lift restrictions, the "inst" part won't stay that simple *)
+and superinstance_var_name (TName supinst) (TName inst) =
+  Name (uconcat ["superinstance_var"; supinst; inst])
+
 and class_to_type_name (TName cl_name) = 
   TName (uconcat ["class_type"; cl_name]) 
-(* k = class, g = instance *)
+
 and instance_to_dict_name (TName cl_name) (TName inst_name) =
   Name (uconcat ["inst_dict"; cl_name; inst_name])
 
@@ -761,10 +774,9 @@ and instance_definition big_env small_env inst_def =
     in
     let f (RecordBinding (name, _)) =
       (* TODO: if we got no matching class member, this List.find will raise Not_found *)
-      subst =< proj3_3 =< List.find (((=) name) =< proj2_3)
+      subst =< proj3_3 =< List.find (((=) name) =< proj2_3) (* #Swag *)
       $ class_def.class_members
     in
-    let id x = x in (* why isn't this part of the standard library? *)
     MP.map (id &&& f)  members_set
   in
 
@@ -807,12 +819,23 @@ and instance_definition big_env small_env inst_def =
                (superclass_accessor_type_name spcl cname, 
                 (* TODO: remove this (debug) and return a proper expression *)
                 begin
-                  (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
                   let rec p = function
                     | InstLeafFromEnv instdef ->
-                      "From env"
-                    | InstLeafFromCtx _ ->
-                      "From ctx"
+                      spconcat
+                        $ List.concat [
+                          ["From env: class"];
+                          List.map
+                            (fun (ClassPredicate (TName cl, TName var)) -> sconcat ["("; cl; var; ") =>"])
+                            instdef.instance_typing_context;
+                          (fun (TName n1) (TName n2) -> [n1; n2])
+                            instdef.instance_class_name instdef.instance_index;
+                        ]
+                    | InstLeafFromCtx impl ->
+                      let rec f = function
+                        | InstInCtx (ClassPredicate (TName cl, _)) -> cl
+                        | InstImplied (TName cl1, _, imp) ->  cl1 ^ " => " ^ (f imp)
+                      in
+                      spconcat ["From ctx:"; f impl]
                     | InstBranch (inst, dep) ->
                       "Inst" ^ (* TODO *) "[" ^ (String.concat "; "(List.map p dep)) ^ "]"
                   in
@@ -827,7 +850,9 @@ and instance_definition big_env small_env inst_def =
                   in
                   match deriv with
                   | Some deriv ->
-                    p deriv;
+                    (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
+                    print_string $ p deriv;
+                    print_newline ();
                     elaborate_parent_proof_into_expr ctx small_env deriv
                   | None -> assert false
                 end
@@ -840,18 +865,20 @@ and instance_definition big_env small_env inst_def =
   in
 
 
-  (* TODO: dict_constructor should be lambda super1 ... supern . dict_record *)
-  (* => ELambda + add a naming convention for dictionary variables *)
   (* Superinstances arguments *)
   let dict_constructor =
     List.fold_right
-      (fun (ClassPredicate (name1, name2)) next ->
-        ELambda
-          ( (* TODO *)
-            nowhere,
-            assert false (* (name * t) *),
-            next
-          ))
+      (function (ClassPredicate (cl, var)) as cl_pred ->
+        fun next ->
+          ELambda
+            (
+              nowhere,
+              ExplicitTyping.binding
+                Lexing.dummy_pos
+                $ superinstance_var_name cl index
+                $ Some (class_predicate_to_type cl_pred),
+              next
+            ))
       ctx
       dict_record
   in
@@ -889,24 +916,71 @@ and check_correct_context pos env tvar_set ctx =
 (* TODO: following commentaries should go to the .mli *)
 (* Following function finds a proof derivation for the target class in the given context *)
 (* The following functions have simple forms thanks to the simplification of the class system *)
-(* CHECK: is it better to merge ctx in env for the search? *)
 (* TODO: try to add more position information (remove as much nowheres as possible) *)
 and find_parent_dict_proof ctx env target =
   let unwrap = Misc.unwrap_res_or_die
   and unwrap_list = Misc.unwrap_res_or_die_list
   in
 
+  let module ClassMap = Map.Make(OrderedTName) in
+
+  
+  (* Map indicating the shortest path to a given superclass *)
+  (* This also lists direct superinstances *)
+  (* #yolo, should be done once and for all, not in this function *)
+  (* FIXME: better name *)
+  let superinstances_superclasses =
+    (* Fixpoint computation... #swag *)
+    let fixpoint f map =
+      let eq_map = ClassMap.equal (fun _ _ -> true) (* We don't need to check data equality *)
+      in
+
+      let rec fix m =
+        let fm = f m
+        in
+        if eq_map m fm then m
+        else fix fm
+      in
+
+      fix (f map)
+    in
+
+    let one_step_superclasses instances =
+    (* We massively use the fact classes have a single parameters #OhNoYouDidnt *)
+      ClassMap.fold
+        (fun cl deriv map ->
+          let class_def = lookup_class nowhere cl env in
+          (* Look in current class's superclasses and add unkown ones *)
+          List.fold_left (* List.fold_left and Map.fold don't have the same parameter order #swog *)
+            (fun submap scl ->
+              if not $ ClassMap.mem scl submap then
+                ClassMap.add scl (InstImplied (scl, cl, deriv)) submap
+              else
+                submap
+            )
+            map
+            class_def.superclasses
+        )
+        instances
+        instances
+    in
+
+    (* Add context and start fixpoint computation *)
+    fixpoint one_step_superclasses
+      $ List.fold_left
+        (fun map -> function (ClassPredicate (cl, _)) as cl_pred ->
+          ClassMap.add cl (InstInCtx cl_pred) map)
+        ClassMap.empty
+        ctx
+  in
+
   let rec loop (cl, target) =
     match target with
     | PredicateTypeVar v ->
       begin
-        match List.filter ((=) (ClassPredicate (cl, v))) ctx with
-        | [] ->
-          None
-        | [inst] ->
-          Some (InstLeafFromCtx inst)
-        | _ ->
-          assert false (* Duplicate entry in context *)
+        (* Ocaml's map uses exception #NoKidding *)
+        try Some (InstLeafFromCtx (ClassMap.find cl superinstances_superclasses)) with
+        | Not_found -> None
       end
 
     | PredicateTypeConstr (constr, opt_var) ->

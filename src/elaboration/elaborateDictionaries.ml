@@ -858,7 +858,7 @@ and instance_definition big_env small_env inst_def =
                     (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
                     print_string $ p deriv;
                     print_newline ();
-                    elaborate_parent_proof_into_expr ctx small_env tinst deriv
+                    elaborate_parent_proof_into_expr ctx small_env (Some index) tinst deriv
                   | None -> assert false
                 end
                )
@@ -1037,7 +1037,8 @@ and find_parent_dict_proof ctx env target =
 
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)
-and elaborate_parent_proof_into_expr ctx env tinstan =
+(* TODO: better than index being an option type? *)
+and elaborate_parent_proof_into_expr ctx env index tinstan =
   let rec f = function
     | InstLeafFromEnv inst_def ->
       EVar
@@ -1048,10 +1049,25 @@ and elaborate_parent_proof_into_expr ctx env tinstan =
         )
     | InstLeafFromCtx class_impl ->
       let rec handle_impl = function
-        | InstInCtx class_pred ->
-          EPrimitive(nowhere, PUnit)      (* TODO *)
-        | InstImplied _ ->(* of type_class_name * type_class_name * class_implication *)
-          EPrimitive(nowhere, PUnit)    (* TODO *)
+        | InstInCtx (ClassPredicate (cl, _)) ->
+          EVar
+            (
+              nowhere,
+              (
+                match index with
+                | Some index ->
+                  superinstance_var_name cl index
+                | None -> assert false
+              ),
+              tinstan (* CHECK *)
+            )
+        | InstImplied (supcl, cl, impl) ->
+          ERecordAccess
+            (
+              nowhere,
+              handle_impl impl,
+              superclass_accessor_type_name supcl cl
+            )
       in
       handle_impl class_impl
     | InstBranch (inst_def, deps) ->

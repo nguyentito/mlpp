@@ -20,7 +20,7 @@ type t =
 type mltype' =
   | TyVar' of type_var_name
   | TyApp' of type_constr_name * mltype' list
- (* TyPonch *)
+ (* TyPunch *)
 
 
 (** Type schemes. *)

@@ -80,6 +80,7 @@ let make_gen_cl_pred (ClassPredicate (cl, var)) =
 type instance_tree = 
 | InstLeafFromDef of instance_definition
 | InstLeafFromCtx of class_implication
+(* TODO: the branch must store a substitution for the type variable correspondance *)
 | InstBranch of instance_definition * instance_tree list
 and class_implication =
 | InstInCtx of class_predicate (* Class predicate actually in context *)
@@ -1052,6 +1053,10 @@ and find_parent_dict_proof env target =
               in
               
               let new_targets = List.map (fun x -> Some (make_gen_cl_pred x)) dependencies
+              in
+
+              (* TODO *)
+              let subs = ()
               in
               
               unwrap (fun e -> Some (InstBranch (inst, e))) 

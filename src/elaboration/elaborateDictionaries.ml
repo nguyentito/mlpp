@@ -80,6 +80,7 @@ let make_gen_cl_pred (ClassPredicate (cl, var)) =
 type instance_tree = 
 | InstLeafFromDef of instance_definition
 | InstLeafFromCtx of class_implication
+(* TODO: the branch must store a substitution for the type variable correspondance *)
 | InstBranch of instance_definition * instance_tree list
 and class_implication =
 | InstInCtx of class_predicate (* Class predicate actually in context *)
@@ -874,7 +875,7 @@ and instance_definition big_env small_env inst_def =
                   in
 
                   let deriv = find_parent_dict_proof small_env
-                    (spcl, TyApp' (index, List.map (fun ohc'mon -> TyVar' ohc'mon) tvars))
+                    (spcl, TyApp' (index, List.map (fun oh_c'mon -> TyVar' oh_c'mon) tvars))
 
                   in
                   match deriv with
@@ -1024,7 +1025,7 @@ and find_parent_dict_proof env target =
         | Not_found -> None
       end
 
-    | TyApp' (constr, vars) ->
+    | TyApp' (constr, subtypes) ->
       let cstr_inst = lookup_instance (cl, constr) env 
       in
 
@@ -1048,12 +1049,37 @@ and find_parent_dict_proof env target =
                 
             (* Branch case (non-empty context) *)
             | _ ->
-              let dependencies = inst.instance_typing_context 
-              in
               
+              (* Function that recursively computes dependencies and substitutions
+                 depending on the shape of subtypes.
+                 For instance, if your instance is (('a G) G'), you  have ('a G) 
+                 as a subtype; thus, you need to add ('a G) as a dependency, and
+                 a substitution ['b -> 'a G] *)
+              let rec get_dep_and_subst = function ->
+                | [] -> [], []
+                | [subtype :: tail] ->
+                  let tdep, tsubst = get_dep_and_subst tail
+                  in
+                  
+                  let cur_dep, cur_subst =
+                    match subtype with
+                    | TyVar' v -> 
+                      inst.instance_typing_context,
+                    (* TODO *)
+                    | TyApp' (cst, subsubtypes) ->
+                  (* TODO *)
+                  in
+                      
+                  cur_dep :: tdep, cur_subst :: tsubst
+              in
+
+              let dependencies, subs = get_dep_and_subst subtypes
+              in
+
               let new_targets = List.map (fun x -> Some (make_gen_cl_pred x)) dependencies
               in
-              
+
+              (* TODO: manage the substitution also *)
               unwrap (fun e -> Some (InstBranch (inst, e))) 
                 $ unwrap_list loop new_targets
 

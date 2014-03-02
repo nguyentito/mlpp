@@ -27,6 +27,9 @@ val values : t -> (tnames * binding) list
 (** [lookup pos x env] returns the binding of [x]. *)
 val lookup : position -> name -> t -> (tnames * binding)
 
+(** [lookup_predicates pos x env] returns the class predicates on [x]. *)
+val lookup_predicates : position -> name -> t -> class_predicates
+
 (** [bind_scheme n ts ps ty e] associates the scheme [forall ts. (ps) => ty]
     to the identifier [n] in [e]. *)
 val bind_scheme : name -> tnames -> class_predicates -> Types.t -> t -> t

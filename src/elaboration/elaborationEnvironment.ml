@@ -62,6 +62,12 @@ let lookup pos x env =
     (ts, (x, ty))
   with Not_found -> raise (UnboundIdentifier (pos, x))
 
+let lookup_predicates pos x env =
+  try
+    let TyScheme (_, ps, _) = NMap.find x env.values in
+    ps
+  with Not_found -> raise (UnboundIdentifier (pos, x))
+
 let bind_scheme x ts ps ty env = 
   { env with values = NMap.add x (TyScheme (ts, ps, ty)) env.values }
 

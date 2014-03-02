@@ -210,8 +210,6 @@ and check_equal_types pos ty1 ty2 =
     raise (IncompatibleTypes (pos, ty1, ty2))
 
 and type_application pos env x tys =
-  (* TODO: handle overloading by turning a type application
-     into dictionary passing *)
   List.iter (check_wf_type env KStar) tys;
   let (ts, (_, ty)) = lookup pos x env in
   try
@@ -221,7 +219,14 @@ and type_application pos env x tys =
 
 and expression env = function
   | EVar (pos, ((Name s) as x), tys) ->
-    (EVar (pos, x, tys), type_application pos env x tys)
+    let ty = type_application pos env x tys in
+    let ps = lookup_predicates pos x env in
+    let f term (ClassPredicate (k, a) as p) =
+      (* TODO: dict *)
+      EApp (pos, term, assert false)
+    in
+    (List.fold_left f (EVar (pos, x, tys)) ps, ty)
+    
 
   | ELambda (pos, ((x, aty) as b), e') ->
     check_wf_type env KStar aty;
@@ -594,6 +599,7 @@ and superclass_accessor_type_name (TName supcl) (TName cl) =
 and superinstance_var_name (TName supinst) (TName inst) =
   Name (uconcat ["superinstance_var"; supinst; inst])
 
+(* TODO: should take a class predicate as argument instead... *)
 and dictionary_var_name (TName cl_name) (TName tvar_name) =
   Name (uconcat ["dictionary_var"; cl_name; tvar_name])
 
@@ -782,14 +788,8 @@ and instance_definition big_env small_env inst_def =
   let augmented_members_set =
     (* Find corresponding class member and add its type,
        instanciated at the instance type, to form the pair (member, type) *)
-    let rec subst = function
-      | TyVar (pos, x) when x = class_def.class_parameter ->
-        instance_type
-      (* TODO: change this once we support classes with
-         polymorphic methods, e.g. fmap *)
-      | TyVar _ -> failwith "unbound type var"
-      | TyApp (pos, constr, args) -> TyApp (pos, constr, List.map subst args)
-    in
+    (* TODO: how to handle free variables after substitution? *)
+    let subst = Types.substitute [(class_def.class_parameter, instance_type)] in
     let f (RecordBinding (name, _)) =
       (* TODO: if we got no matching class member, this List.find will raise Not_found *)
       subst =< proj3_3 =< List.find (((=) name) =< proj2_3) (* #Swag *)

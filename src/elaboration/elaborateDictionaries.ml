@@ -73,12 +73,13 @@ type dict_request_source =
    More exactly, it covers the following cases: 
    the type can be:
    - a simple type variable
+   TODO: wrong ↓
    - built from a single {0,1}-ary type constructor and (possibly) a type variable) 
 *)
 type general_class_predicate =  type_class_name * predicate_target
 and predicate_target = 
 | PredicateTypeVar of type_var_name
-| PredicateTypeConstr of type_constr_name * type_var_name option
+| PredicateTypeConstr of type_constr_name * type_var_name list
 
 
 let make_gen_cl_pred (ClassPredicate (cl, var)) =
@@ -846,19 +847,14 @@ and instance_definition big_env small_env inst_def =
                   in
                   let deriv =
                     find_parent_dict_proof ctx small_env 
-                      (spcl, PredicateTypeConstr (index, 
-                                             match tvars with
-                                             | [] -> None
-                                             | [v] -> Some v
-                                             | _ -> assert false)
-                      )
+                      (spcl, PredicateTypeConstr (index, tvars))
                   in
                   match deriv with
                   | Some deriv ->
                     (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
                     print_string $ p deriv;
                     print_newline ();
-                    elaborate_parent_proof_into_expr ctx small_env (Some index) tinst deriv
+                    elaborate_parent_proof_into_expr ctx small_env tinst deriv
                   | None -> assert false
                 end
                )
@@ -988,46 +984,46 @@ and find_parent_dict_proof ctx env target =
         | Not_found -> None
       end
 
-    | PredicateTypeConstr (constr, opt_var) ->
-      let arity = arity_of_kind (lookup_type_kind nowhere constr env)
+    | PredicateTypeConstr (constr, vars) ->
+      let cstr_inst = lookup_instance (cl, constr) env 
       in
 
+      (* TODO : this match is an unwrap *)
       begin
-        match arity with
-        (* Nullary constructor target (i.e., base type) *)
-        | 0 ->
-          (* Simple check to ensure coherence *)
-          (match opt_var with 
-          | Some _ -> raise (InvalidTypeApplication nowhere)
-          | None -> ());
-          (* CHECK: should it be IllKindedType? *)
-          
+        match cstr_inst with
+        | None -> None
+        | Some inst ->
+          (* let arity = arity_of_kind (lookup_type_kind nowhere constr env) *)
+          (* in *)
+          let ctx_size = List.length inst.instance_typing_context
+          in
 
-          unwrap (fun x -> Some (InstLeafFromEnv x)) (lookup_instance (cl, constr) env)
-            
-        (* Unary constructor target *)
-        | 1 ->
-          (* Simple check to ensure coherence *)
-          if opt_var = None then
-            raise (IllKindedType nowhere);
-          
-          (* TODO : this match is an unwrap *)
-          (
-            match lookup_instance (cl, constr) env with
-            | None -> None
-            | Some inst ->
+          begin
+            match ctx_size with
+            (* 
+               Empty context : leaf case
+            *)
+            | 0 ->
+              unwrap (fun x -> Some (InstLeafFromEnv x)) (lookup_instance (cl, constr) env)
+                
+            (* Branch case (non-empty context) *)
+            | _ ->
+              (* Simple check to ensure coherence *)
+              if vars = [] then
+                raise (IllKindedType nowhere);
+              (* TODO: we can do more and check the constructor's arity, that must be non zero *)
+              
+              
               let dependencies = inst.instance_typing_context 
               in
-
+              
               let new_targets = List.map (fun x -> Some (make_gen_cl_pred x)) dependencies
               in
-                
+              
               unwrap (fun e -> Some (InstBranch (inst, e))) 
                 $ unwrap_list loop new_targets
-          )
 
-        | n -> assert false (* TODO *)
-
+          end
       end
 
   in
@@ -1038,7 +1034,7 @@ and find_parent_dict_proof ctx env target =
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)
 (* TODO: better than index being an option type? *)
-and elaborate_parent_proof_into_expr ctx env index tinstan =
+and elaborate_parent_proof_into_expr ctx env tinstan =
   let rec f = function
     | InstLeafFromEnv inst_def ->
       EVar
@@ -1053,12 +1049,10 @@ and elaborate_parent_proof_into_expr ctx env index tinstan =
           EVar
             (
               nowhere,
-              (
-                match index with
-                | Some index ->
-                  superinstance_var_name cl index
-                | None -> assert false
-              ),
+              Name "wtf"
+                (* FIXME: new name *)
+                (* superinstance_var_name cl index *)
+                ,
               tinstan (* CHECK *)
             )
         | InstImplied (supcl, cl, impl) ->

@@ -874,7 +874,7 @@ and instance_definition big_env small_env inst_def =
                   in
 
                   let deriv = find_parent_dict_proof small_env
-                    (spcl, TyApp' (index, List.map (fun ohc'mon -> TyVar' ohc'mon) tvars))
+                    (spcl, TyApp' (index, List.map (fun oh_c'mon -> TyVar' oh_c'mon) tvars))
 
                   in
                   match deriv with

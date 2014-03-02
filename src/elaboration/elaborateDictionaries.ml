@@ -506,7 +506,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
                 nowhere,
                 ExplicitTyping.binding
                   Lexing.dummy_pos
-                  $ dictionary_name cl tvar
+                  $ dictionary_var_name cl tvar
                   $ Some (class_predicate_to_type cl_pred),
                 next
               ))
@@ -1058,7 +1058,7 @@ and find_parent_dict_proof ctx env target =
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)
 (* TODO: better than index being an option type? *)
-and elaborate_parent_proof_into_expr ctx env tinstan =
+and elaborate_parent_proof_into_expr ctx env index tinstan =
   let rec f = function
     | InstLeafFromDef inst_def ->
       EVar

@@ -36,8 +36,8 @@ type t = {
   types        : (Types.kind * type_definition) TMap.t;
   labels       : (tnames * Types.t * tname) LMap.t;
   classes      : class_definition TMap.t;
-  instances    : instance_definition InstanceMap.t
-  dictionaries : name DictSet.t
+  instances    : instance_definition InstanceMap.t;
+  dictionaries : DictSet.t
 }
 
 let empty = { values       = NMap.empty;
@@ -135,10 +135,10 @@ let initial =
   ]
 
 let bind_dictionary p env = 
-  { env with dictionaries = DictSet.add p env }
+  { env with dictionaries = DictSet.add p env.dictionaries }
 
 let lookup_dictionary p env =
-  DictSet.mem env.dictionaries p
+  DictSet.mem p env.dictionaries
 
 let bind_instance inst env =
   let pos = inst.instance_position
@@ -150,7 +150,9 @@ let bind_instance inst env =
     then raise (OverlappingInstances (pos, inst.instance_index))
   end;
   let env = { env with instances = InstanceMap.add inst_key inst env.instances } in
-  if inst
+  env
+  (* TODO: bind the associated dictionary to the env
+     iff no superinstances *)
 
 
 (* let lookup_instance pos inst_key env = *)

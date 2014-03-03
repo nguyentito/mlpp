@@ -11,18 +11,16 @@ type type_constr_name = tname
 type type_class_name = tname
 
 
-(* TODO: rename this! Why the f*ck would you ever name a potentially
-   de facto top-level type "t"!?!? *)
-type (* #wtf *) t =
+type  mltype =
   | TyVar        of position * type_var_name
-  | TyApp        of position * type_constr_name * t list
+  | TyApp        of position * type_constr_name * mltype list
 
-(* TODO: t (here ↑) has to depend on the following type *)
+(* TODO: mltype (here ↑) has to depend on the following type *)
 type mltype' =
   | TyVar' of type_var_name
   | TyApp' of type_constr_name * mltype' list
 
-type scheme = TyScheme of type_var_name list * class_predicates * t
+type scheme = TyScheme of type_var_name list * class_predicates * mltype
 
 and class_predicate = ClassPredicate of type_class_name * type_var_name
 and class_predicates = class_predicate list
@@ -45,17 +43,17 @@ let rec destruct_ntyarrow ty =
     | Some (i, o) -> let (is, o) = destruct_ntyarrow o in (i :: is, o)
 
 type instantiation_kind =
-  | TypeApplication of t list
+  | TypeApplication of mltype list
   | LeftImplicit
 
 module type TypingSyntax = sig
   type binding
 
   val binding
-    : Lexing.position -> name -> t option -> binding
+    : Lexing.position -> name -> mltype option -> binding
 
   val destruct_binding
-    : binding -> name * t option
+    : binding -> name * mltype option
 
   type instantiation
 
@@ -63,7 +61,7 @@ module type TypingSyntax = sig
     : Lexing.position -> instantiation_kind -> instantiation
 
   val destruct_instantiation_as_type_applications
-    : instantiation -> t list option
+    : instantiation -> mltype list option
 
   val implicit : bool
 
@@ -71,13 +69,13 @@ end
 
 module ImplicitTyping =
 struct
-  type binding = Name.name * t option
+  type binding = Name.name * mltype option
 
   let binding _ x ty : binding = (x, ty)
 
   let destruct_binding b = b
 
-  type instantiation = t option
+  type instantiation = mltype option
 
   let instantiation pos = function
     | TypeApplication _ ->
@@ -93,7 +91,7 @@ end
 
 module ExplicitTyping =
 struct
-  type binding = Name.name * t
+  type binding = Name.name * mltype
 
   let binding pos x = function
     | None -> Errors.fatal [pos] "An explicit type annotation is required."
@@ -101,7 +99,7 @@ struct
 
   let destruct_binding (x, ty) = (x, Some ty)
 
-  type instantiation = t list
+  type instantiation = mltype list
 
   let instantiation pos = function
     | LeftImplicit ->
@@ -133,7 +131,7 @@ let rec equivalent ty1 ty2 =
     | _, _ ->
       false
 
-let rec substitute (s : (type_var_name * t) list) = function
+let rec substitute (s : (type_var_name * mltype) list) = function
   | TyVar (p, v) ->
     (try List.assoc v s with Not_found -> TyVar (p, v))
 

@@ -12,9 +12,9 @@ type type_constr_name = tname
 
 
 (** The types are first-order terms. *)
-type t =
+type mltype =
   | TyVar        of position * type_var_name
-  | TyApp        of position * type_constr_name * t list
+  | TyApp        of position * type_constr_name * mltype list
 
 
 type mltype' =
@@ -24,7 +24,7 @@ type mltype' =
 
 
 (** Type schemes. *)
-type scheme = TyScheme of type_var_name list * class_predicates * t
+type scheme = TyScheme of type_var_name list * class_predicates * mltype
 
 (* CHECK that this convention (the left one is the class name, the right one is the type variable) 
    matches the actual use of the code *)
@@ -33,7 +33,7 @@ and class_predicate = ClassPredicate of type_class_name * type_var_name
 and class_predicates = class_predicate list
 
 type instantiation_kind =
-  | TypeApplication of t list
+  | TypeApplication of mltype list
   | LeftImplicit
 
 (** The following module type specifies the differences
@@ -45,10 +45,10 @@ module type TypingSyntax = sig
   type binding
 
   val binding
-    : Lexing.position -> name -> t option -> binding
+    : Lexing.position -> name -> mltype option -> binding
 
   val destruct_binding
-    : binding -> name * t option
+    : binding -> name * mltype option
 
   (** Type applications are either left implicit or
       explicitly given. *)
@@ -58,7 +58,7 @@ module type TypingSyntax = sig
     : Lexing.position -> instantiation_kind -> instantiation
 
   val destruct_instantiation_as_type_applications
-    : instantiation -> t list option
+    : instantiation -> mltype list option
 
   val implicit : bool
 
@@ -66,25 +66,25 @@ end
 
 (** The typing syntax for implicitly typed ML. *)
 module ImplicitTyping : TypingSyntax
-  with type binding = name * t option
-  and type instantiation = t option
+  with type binding = name * mltype option
+  and type instantiation = mltype option
 
 (** The typing syntax for explicitly typed ML. *)
 module ExplicitTyping : TypingSyntax
-  with type binding = name * t
-  and type instantiation = t list
+  with type binding = name * mltype
+  and type instantiation = mltype list
 
 (** [ntyarrow pos [ity0; ... ityN] oty] returns the type of the shape
     [ity0 -> ... ityN -> oty]. *)
-val ntyarrow : position -> t list -> t -> t
+val ntyarrow : position -> mltype list -> mltype -> mltype
 
 (** [destruct_ntyarrow ty] returns [([ity0; ... ityN], oty)] if [ty] has
     the shape [ity0 -> ... ityN -> oty]. Otherwise, it returns [([],
     oty)]. *)
-val destruct_ntyarrow : t -> t list * t
+val destruct_ntyarrow : mltype -> mltype list * mltype
 
 (** [destruct_tyarrow ty] returns (ity, oty) if [ty = ity -> oty]. *)
-val destruct_tyarrow : t -> (t * t) option
+val destruct_tyarrow : mltype -> (mltype * mltype) option
 
 (** Types are internally sorted by kinds. *)
 type kind =
@@ -99,11 +99,11 @@ val kind_of_arity : int -> kind
 val arity_of_kind : kind -> int
 
 (** [equivalent t1 t2] returns true if [t1] is equivalent to [t2]. *)
-val equivalent : t -> t -> bool
+val equivalent : mltype -> mltype -> bool
 
 (** [substitute s ty] returns [ty] on which the substitution [s]
     has been applied. *)
-val substitute : (type_var_name * t) list -> t -> t
+val substitute : (type_var_name * mltype) list -> mltype -> mltype
 
 (************************************************)
 
@@ -114,7 +114,7 @@ val tset_of_list : tname list -> TSet.t
 
 (** [type_variable_set t] returns the set of variables which occur in [t],
     i.e. the leaves of its syntax tree *)
-val type_variable_set : t -> TSet.t
+val type_variable_set : mltype -> TSet.t
 
 
 

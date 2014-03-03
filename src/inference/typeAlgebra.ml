@@ -35,7 +35,7 @@ type associativity =
   | AssocRight
   | EnclosedBy of string * string
 
-type builtin_dataconstructor = dname * tname list * Types.t
+type builtin_dataconstructor = dname * tname list * Types.mltype
 
 let builtin_env =
   [|

@@ -27,14 +27,14 @@ type t = {
    values       : (tnames * binding) list;
    types        : (tname * (Types.kind * type_definition)) list;
    classes      : (tname * class_definition) list;
-   labels       : (lname * (tnames * Types.t * tname)) list;
+   labels       : (lname * (tnames * Types.mltype * tname)) list;
 }
 *)
 
 type t = {
   values       : mltypescheme NMap.t;
   types        : (Types.kind * type_definition) TMap.t;
-  labels       : (tnames * Types.t * tname) LMap.t;
+  labels       : (tnames * Types.mltype * tname) LMap.t;
   classes      : class_definition TMap.t;
   instances    : instance_definition InstanceMap.t;
   dictionaries : DictSet.t

@@ -33,7 +33,7 @@ exception RecursiveType of position
     object [x] as a type. Consecutive calls to [print] share the same
     variable naming conventions, unless [reset] is called in
     between. *)
-val type_of_variable: position -> variable -> Types.t
+val type_of_variable: position -> variable -> Types.mltype
 
 (** [type_of_variable pos x] returns an external representation of the
     object [x] as a type scheme. Consecutive calls to [print] share

@@ -19,7 +19,7 @@ sig
   val pprint_expression : AST.expression -> PPrint.document
 
   (** [pprint_ml_type ty] prints [ty]. *)
-  val pprint_ml_type : Types.t -> PPrint.document
+  val pprint_ml_type : Types.mltype -> PPrint.document
 
   (** [pprint_ml_kind k] prints [k]. *)
   val pprint_ml_kind : Types.kind -> PPrint.document

@@ -10,13 +10,13 @@ exception AlreadyDefinedClass of position * tname
 exception InvalidTypeApplication of position
 exception InvalidDataConstructorApplication of position
 exception PatternsMustBindSameVariables of position
-exception CannotElaborateDictionary of position * Types.t
+exception CannotElaborateDictionary of position * Types.mltype
 exception UnboundIdentifier of position * name
 exception NonLinearPattern of position
-exception IncompatibleTypes of position * Types.t * Types.t
+exception IncompatibleTypes of position * Types.mltype * Types.mltype
 exception IncompatibleKinds of position * Types.kind * Types.kind
 exception IllKindedType of position
-exception RecordExpected of position * Types.t
+exception RecordExpected of position * Types.mltype
 exception ApplicationToNonFunctional of position
 exception ValueRestriction of position
 exception InvalidOverloading of position

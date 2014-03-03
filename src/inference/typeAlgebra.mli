@@ -85,7 +85,7 @@ val tycon_name : 'a arterm -> 'a arterm
 val type_of_primitive : 'a environment -> IAST.primitive -> 'a arterm
 
 (** The type of predefined data constructors. *)
-type builtin_dataconstructor = dname * tname list * Types.t
+type builtin_dataconstructor = dname * tname list * Types.mltype
 
 (** [init_builtin_env variable_maker] uses [variable_maker] to built
     a typing environment that maps type constructor names to their arities
@@ -96,5 +96,5 @@ val init_builtin_env: (?name:tname -> unit -> 'a)
 val builtin_env:
   (tname
    * (bool * associativity * int * Types.kind
-      * (dname * tname list * Types.t) list))
+      * (dname * tname list * Types.mltype) list))
   array

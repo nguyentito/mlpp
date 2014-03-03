@@ -102,7 +102,7 @@ module Make (P : Types.TypingSyntax) = struct
 
   and tnames = tname list
 
-  and mltype = Types.t
+  and mltype = Types.mltype
 
   and mltypescheme = Types.scheme
 

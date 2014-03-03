@@ -36,13 +36,13 @@ open Constraint
     If it finds one, it returns the type annotation,
     together with the expression (deprived of its annotation).
     Otherwise, it raises [Not_found]. *)
-val extract_type : expression -> Types.t * expression
+val extract_type : expression -> Types.mltype * expression
 
 (** [recursive_value_definition_kind] tests if a recursive definition
     is annotated or not. *)
 type recursive_value_definition_kind =
     Implicit of name * expression
-  | Explicit of name * Types.t * expression
+  | Explicit of name * Types.mltype * expression
   | NotPVar
 
 (** [explicit_or_implicit p e] tests if a definition is annotated or
@@ -53,7 +53,7 @@ val explicit_or_implicit :
   position -> binding -> expression -> recursive_value_definition_kind
 
 (** [variables_of_typ ty] returns the type variables of [ty]. *)
-val variables_of_typ : Types.t -> Misc.StringSet.t
+val variables_of_typ : Types.mltype -> Misc.StringSet.t
 
 (** [arrow env x1 x2] builds the internal representation of the
     type [x1 -> x2]. *)
@@ -61,13 +61,13 @@ val arrow :
   environment -> variable arterm -> variable arterm -> variable arterm
 
 (** [arity (t1 -> ... -> tn)] returns [n - 1]. *)
-val arity : Types.t -> int
+val arity : Types.mltype -> int
 
 (** [tycon t xs] builds the internal representation of the type [t xs]. *)
 val tycon : environment -> tname -> variable arterm list -> variable arterm
 
 (** [intern env ty] converts [ty] into its internal representation. *)
-val intern : position -> environment -> Types.t -> crterm
+val intern : position -> environment -> Types.mltype -> crterm
 
 (** [internal_let_env env fqs rqs] internalizes the flexible variables
     [fqs] and the rigid variables [rqs] into [env]. *)
@@ -86,5 +86,5 @@ val intern_class_predicates :
     of the type scheme [forall fqs [cs].ty] and the binding of [x] to it. *)
 val intern_scheme :
   position -> environment -> string
-  -> tname list -> Types.class_predicates -> Types.t
+  -> tname list -> Types.class_predicates -> Types.mltype
   -> (crterm, variable) scheme

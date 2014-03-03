@@ -7,7 +7,7 @@ sig
   val pprint_program : AST.program -> PPrintEngine.document
   val pprint_program_in_ocaml : AST.program -> PPrintEngine.document
   val pprint_expression : AST.expression -> PPrint.document
-  val pprint_ml_type : Types.t -> PPrint.document
+  val pprint_ml_type : Types.mltype -> PPrint.document
   val pprint_ml_kind : Types.kind -> PPrint.document
 end
 

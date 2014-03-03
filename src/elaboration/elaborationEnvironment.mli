@@ -29,11 +29,11 @@ val lookup : position -> name -> t -> (tnames * binding)
 
 (** [bind_scheme n ts ps ty e] associates the scheme [forall ts. (ps) => ty]
     to the identifier [n] in [e]. *)
-val bind_scheme : name -> tnames -> class_predicates -> Types.t -> t -> t
+val bind_scheme : name -> tnames -> class_predicates -> Types.mltype -> t -> t
 
 (** [bind_simple n ty e] associates the type [ty] to
     the identifier [n] in [e]. *)
-val bind_simple : name -> Types.t -> t -> t
+val bind_simple : name -> Types.mltype -> t -> t
 
 (** [lookup_predicates pos x env] returns the class predicates on [x]. *)
 val lookup_scheme : position -> name -> t -> mltypescheme
@@ -68,11 +68,11 @@ val bind_class : tname -> class_definition -> t -> t
 (** [bind_label pos l ts lty rtycon e] associates the type parameters [ts],
     the type [lty] and the record type constructor [rtycon] to the label [l]
     in [e]. *)
-val bind_label : position -> lname -> tnames -> Types.t -> tname -> t -> t
+val bind_label : position -> lname -> tnames -> Types.mltype -> tname -> t -> t
 
 (** [lookup_label pos l e] returns the type parameters, the type and
     the record type constructor of the label [l] in [e]. *)
-val lookup_label : position -> lname -> t -> tnames * Types.t * tname
+val lookup_label : position -> lname -> t -> tnames * Types.mltype * tname
 
 (** [bind_instance i e] adds the instance [i] to the environment [e] *)
 val bind_instance : instance_definition -> t -> t

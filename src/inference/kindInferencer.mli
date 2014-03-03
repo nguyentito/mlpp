@@ -37,14 +37,14 @@ type env = (tname -> t) * (tname -> t -> unit)
 val fresh_kind: unit -> t
 
 (** [infer env typ] infers a kind for [typ]. *)
-val infer: env -> Types.t -> t
+val infer: env -> Types.mltype -> t
 
 (** [intern_kind env kind] internalizes a kind in the user-syntax. *)
 val intern_kind: env -> kind -> t
 
 (** [check pos env typ kind ] verifies that [typ] can be given the kind
     [kind]. *)
-val check: position -> env -> Types.t -> t -> unit
+val check: position -> env -> Types.mltype -> t -> unit
 
 (** [star] is the kind of ml values. *)
 val star : t

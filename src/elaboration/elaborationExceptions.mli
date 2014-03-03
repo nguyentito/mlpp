@@ -35,7 +35,7 @@ exception PatternsMustBindSameVariables of position
 
 (** [CannotElaborateDictionary] is raised when a dictionary of some
     given type cannot be elaborated from the context. *)
-exception CannotElaborateDictionary of position * Types.t
+exception CannotElaborateDictionary of position * Types.mltype
 
 (** [NonLinearPattern] is raised when a pattern does not respect
     the linearity condition of ML patterns. *)
@@ -43,7 +43,7 @@ exception NonLinearPattern of position
 
 (** [IncompatibleTypes] is raised when two types are incompatible,
     although they should. *)
-exception IncompatibleTypes of position * Types.t * Types.t
+exception IncompatibleTypes of position * Types.mltype * Types.mltype
 
 (** [IncompatibleKinds] is raised when two kinds are incompatible,
     although they should. *)
@@ -54,7 +54,7 @@ exception IllKindedType of position
 
 (** [RecordExpected] is raised when a record type is expected
     but another type is inferred. *)
-exception RecordExpected of position * Types.t
+exception RecordExpected of position * Types.mltype
 
 (** [ApplicationToNonFunctional] is raised when the left hand side
     of an application is not a function. *)

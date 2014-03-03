@@ -51,7 +51,7 @@ let rec extract_type = function
 
 type recursive_value_definition_kind =
   | Implicit of name * expression
-  | Explicit of name * Types.t * expression
+  | Explicit of name * Types.mltype * expression
   | NotPVar
 
 (** [explicit_or_implicit] examines a value definition and determines whether

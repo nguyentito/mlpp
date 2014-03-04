@@ -1,11 +1,21 @@
+About the naming conventions: they're fixed now, so we should write them up
+clearly in a separate file and remove them from the TODO.
+
    Names
 ------------
 - Change executable name ("joujou"...) and create an alias 
 
 
+   Code (inference)
+-----------------------
 
-   Code
-------------
+- Default unconstrainted type variables to unit?
+  With a compiler flag + warning (you should add type annotations...)
+- Check for inaccessible constraints + raise *relevant* error messages
+- Rewrite it in purely functional style? \o/
+
+   Code (elaboration)
+-----------------------
 - Why not unify variables representations in instance definition ?
   (switch instance_parameters to Types.t (TyVar))
   -> it allows to keep track of variables position, and we almost always use them as a list of

@@ -253,12 +253,8 @@ let type_of_variable pos v =
 
 let export_class_predicate pos (k, ty) =
   match snd (export false [] ty) with
-    | TyVar (_, v) -> ClassPredicate (k, v)
-    (* | _ -> let open InferenceExceptions in *)
-    (*        raise (InvalidClassPredicateInContext (pos, k)) *)
-    | TyApp (_, TName x, _) ->
-      let open InferenceExceptions in
-          raise (InvalidClassPredicateInContext (pos, k))
+    | TyVar (_, v) -> [ClassPredicate (k, v)]
+    | _ -> []
 
 let canonicalize_class_predicates ts cps =
   let cps =
@@ -295,7 +291,9 @@ let type_scheme_of_variable =
     try
       let export = export true in
       let (ts, ty) = export vs v in
-      let cps = List.map (export_class_predicate pos) cps in
+      let cps = List.(flatten (map (export_class_predicate pos) cps)) in
       let cps = canonicalize_class_predicates ts cps in
+      let fvs = InternalizeTypes.variables_of_typ ty in
+      let ts = List.filter (fun (TName x) -> StringSet.mem x fvs) ts in
       TyScheme (ts, cps, ty)
     with Cycle -> raise (RecursiveType pos)

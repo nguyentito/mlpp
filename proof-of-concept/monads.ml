@@ -4,7 +4,7 @@
 (* Notes:
    - polymorphic recursion + higher kinds probably works
      (but it's not really important)
-   - abandoned first-class modules, use local modules instead
+   - abandoned first-class modules, use local functors instead
      (should work better)
 *)
 
@@ -123,4 +123,41 @@ let foobar =
    (let module X = Wrapper_liftA2(TOpt)(ApplicativeOpt) in X.liftA2)
     ( * ) (Some 6) (Some 7))
     
+
+module type Monad = sig
+  type 'a m
+  module SuperclassApplicative : Applicative with type 'a f = 'a m
+  val join : 'a m m -> 'a m
+end
+
+module MonadList : Monad with type 'a m = 'a list = struct
+  type 'a m = 'a list
+  module SuperclassApplicative = ApplicativeList
+  let join = List.concat
+end
+
+module MonadOpt : Monad with type 'a m = 'a option = struct
+  type 'a m = 'a option
+  module SuperclassApplicative = ApplicativeOpt
+  let join = function (Some x) -> x | _ -> None
+end
+
+module Wrapper_join
+  = functor (T : TypeCon) -> 
+    functor (M : Monad with type 'a m = 'a T.t) -> struct
+      let join = M.join
+    end
+
+module Wrapper_bind
+  = functor (T : TypeCon) -> 
+    functor (M : Monad with type 'a m = 'a T.t) -> struct
+      let bind : type a b. a T.t -> (a -> b T.t) -> b T.t = fun m k ->
+        (let module X = Wrapper_join(T)(M) in X.join)
+          ((let module X = 
+                  Wrapper_fmap(T)(M.SuperclassApplicative.SuperclassFunctor)
+            in X.fmap)
+              k
+              m)
+    end
+
 

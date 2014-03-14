@@ -116,7 +116,8 @@ val tset_of_list : tname list -> TSet.t
     i.e. the leaves of its syntax tree *)
 val type_variable_set : mltype -> TSet.t
 
-
+(** non-leaf nodes of the syntax tree *)
+val type_constructor_set : mltype -> TSet.t
 
 
 module LSet : Set.S with type elt = lname

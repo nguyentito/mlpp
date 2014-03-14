@@ -89,7 +89,10 @@ class_members          = record_type
     Errors.fatal [$startpos; $endpos]
       "The same type parameter as in the class must be used by superclasses.";
   let superclasses = List.map (fun (ClassPredicate (k, _)) -> k) superclasses in
-  { class_position; superclasses; class_parameter; class_members; class_name }
+  let is_constructor_class = let (TName x) = class_parameter in
+                             x.[0] <> '\'' in
+  { is_constructor_class; class_position; superclasses;
+    class_parameter; class_members; class_name }
 }
 
 %inline superclasses:
@@ -108,6 +111,16 @@ class_parameter        = tvname
 {
   ClassPredicate (class_name, class_parameter)
 }
+|
+class_name             = class_name
+class_parameter        = tname
+{
+  (* Extension: constructor classes *)
+  if Fts.on ()
+  then ClassPredicate (class_name, class_parameter)
+  else Errors.fatal [$startpos; $endpos] "Syntax error"
+}
+
 
 class_name: c=UID
 {

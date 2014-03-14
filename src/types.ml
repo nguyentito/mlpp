@@ -152,6 +152,11 @@ let rec type_variable_set = function
     let f acc t = TSet.union acc (type_variable_set t) in
     List.fold_left f TSet.empty args
 
+let rec type_constructor_set = function
+  | TyApp (_, constr, args) ->
+    let f acc t = TSet.union acc (type_variable_set t) in
+    List.fold_left f (TSet.singleton constr) args
+  | _ -> TSet.empty
 
 
 module LSet = Set.Make(OrderedLName)

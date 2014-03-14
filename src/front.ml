@@ -11,12 +11,14 @@ let print_version () =
 
 let flags_table = Hashtbl.create 12
 (* TODO: descriptions for the flags *)
-let flags = ["parsing-only"    , " Parse only";
-             "inference-only"  , "";
-             "elaboration-only", "";
-             "implicitly-typed", "";
-             "explicitly-typed", "";
-             "compile-with-ocaml", ""]
+let flags = ["parsing-only"      , " Parse only";
+             "inference-only"    , "";
+             "elaboration-only"  , "";
+             "implicitly-typed"  , "";
+             "explicitly-typed"  , "";
+             "compile-with-ocaml", "";
+             "fts"               , ""
+            ]
 let set_flag fl = Hashtbl.add flags_table fl ()
 let flags_option_list =
   List.map (fun (fl, desc) ->
@@ -69,6 +71,9 @@ let _ = if flag_enabled "explicitly-typed" && flag_enabled "inference-only"
 let _ = if not (flag_enabled "compile-with-ocaml")
   then set_flag "dont-compile-with-ocaml"
 
+let _ = if (flag_enabled "fts")
+  then Fts.switch_on ()
+
 
 type filename = Filename of string
 
@@ -120,7 +125,8 @@ let elaborate_type_annotations : (IAST.program, XAST.program) pass
 )
 
 let elaborate_dictionaries : (XAST.program, XAST.program) pass
-= save_as ".mlr" ~check:is_explicitly_typed_syntax (fun xast _ ->
+(* = save_as ".mlr" ~check:is_explicitly_typed_syntax (fun xast _ -> *)
+= save_as ".mlr" (fun xast _ ->
   let rast = ElaborateDictionaries.program xast in
   (rast, ASTio.XAST.pprint_program rast)
 )

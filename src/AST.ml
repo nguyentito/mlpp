@@ -15,6 +15,7 @@ module Make (P : Types.TypingSyntax) = struct
     | BDefinition of value_binding
 
   and class_definition = {
+    is_constructor_class : bool;
     class_position  : position;
     class_parameter : tname;
     superclasses    : tname list;

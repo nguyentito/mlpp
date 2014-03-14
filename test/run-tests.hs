@@ -47,7 +47,7 @@ runTests category isGood testCmd = do
           flag = case category of
             Inference   -> " --inference-only" -- don't forget the space!
             Elaboration -> " --elaboration-only"
-            Compilation -> " --compile-with-ocaml"
+            Compilation -> " --compile-with-ocaml --fts"
 
 catName = map toLower . show
 subdir category isGood =

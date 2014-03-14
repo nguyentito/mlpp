@@ -43,6 +43,7 @@ let elaborate : ConstraintSolver.answer -> IAST.program -> XAST.program =
     (* No need to change this, right? *)
     and class_definition cd =
       {
+        XAST.is_constructor_class = cd.is_constructor_class;
         XAST.class_name      = cd.class_name;
         XAST.class_position  = cd.class_position;
         XAST.class_members   = cd.class_members;

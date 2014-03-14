@@ -49,8 +49,15 @@ val lookup_type_definition : position -> tname -> t -> type_definition
     [tdef] to the type identifier [t] in [e]. *)
 val bind_type : tname -> Types.kind -> type_definition -> t -> t
 
-(** [bind_type_variable x e] introduces the type variable [x] in [e]. *)
+(** [bind_type_variable x e] introduces the type variable [x] in [e]
+    with kind *
+*)
 val bind_type_variable : tname -> t -> t
+
+(** [bind_type_variable x e] introduces the type variable [x] in [e]
+    with kind * -> *
+*)
+val bind_type_constructor_variable : tname -> t -> t
 
 (** [labels_of rtcon e] returns all the labels of the record [rtcon]. *)
 val labels_of : tname -> t -> lname list

@@ -624,6 +624,12 @@ and class_definition env cdef =
 
   let env = bind_class cname cdef env in
 
+  (* (if cdef.is_constructor_class then ( *)
+  (*   let (TName x) = cname in *)
+  (*   failwith ("Awesome! " ^ x ^ " is a constructor class!") *)
+  (*  )); *)
+      
+
   (* Handle superclasses *)
   let super = cdef.superclasses in
   Misc.iter_unordered_pairs (check_unrelated_superclasses pos env) super;
@@ -636,8 +642,9 @@ and class_definition env cdef =
      by another one?
   *)
   let members = cdef.class_members in
-  let (accessors, env) = Misc.list_foldmap (class_member cname tvar)
-                                           env members in
+  let (accessors, env) =
+    Misc.list_foldmap (class_member cdef.is_constructor_class cname tvar)
+                      env members in
   let dict_record = DRecordType ([tvar], dict_super_fields @ members) in
 
   (dict_record, accessors, env)
@@ -651,10 +658,14 @@ and superclass_dictionary_field tvar cname sc_name =
   (* for instance, _Ord_Eq *)
   (nowhere, field_name, class_to_dict_type sc_name tvar)
 
-and class_member cname tvar env (pos, l, ty) =
-  check_wf_type (bind_type_variable tvar env) KStar ty;
+and class_member is_constr_class cname tvar env (pos, l, ty) =
+  check_wf_type ((if is_constr_class
+                  then bind_type_constructor_variable
+                  else bind_type_variable)
+                    tvar env) KStar ty;
   begin
-    if not (TSet.mem tvar (type_variable_set ty))
+    if not ((is_constr_class && TSet.mem tvar (type_constructor_set ty))
+            || (not is_constr_class && TSet.mem tvar (type_variable_set ty)))
       (* unreachable constraint / ambiguous type variable *)
     then raise (InvalidOverloading pos)
   end;

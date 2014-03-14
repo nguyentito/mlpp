@@ -110,6 +110,10 @@ let rec is_superclass pos k1 k2 env =
 let bind_type_variable t env =
   bind_type t KStar (TypeDef (undefined_position, KStar, t, DAlgebraic [])) env
 
+let bind_type_constructor_variable t env =
+  bind_type t (KArrow (KStar, KStar))
+    (TypeDef (undefined_position, KStar, t, DAlgebraic [])) env
+
 let labels_of rtcon env =
   let p (_, (_, _, rtcon')) = rtcon = rtcon' in
   fst (List.split (List.filter p (LMap.bindings env.labels)))

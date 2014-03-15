@@ -111,9 +111,15 @@ let elaborate : ConstraintSolver.answer -> IAST.program -> XAST.program =
           match sty, ty with
             | TyVar (_, x), ty ->
               (x, ty) :: subst
-            | TyApp (_, _, ts), TyApp (_, _, tys) ->
+            | TyApp (_, TName x, ts), TyApp (_, t, tys) ->
               (** Type inference generates valid instantiations, so: *)
               assert (List.(length ts = length tys));
+            (* Constructor class support:
+               distinguish constructor variables by the presence
+               of a quote *)
+              let subst =  if x.[0] = '\''
+                then (TName x, TyVar (undefined_position, t)) :: subst
+                else subst in
               List.fold_left2 aux subst ts tys
             | _, _ ->
               (** Type inference generates valid instantiations. *)

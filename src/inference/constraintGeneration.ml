@@ -568,6 +568,8 @@ and infer_label pos tenv ltys (RecordBinding (l, exp), t) =
 
 
 let infer_class tenv tc =
+  let is_cc = tc.is_constructor_class in
+
   let pos = tc.class_position
   and k = tc.class_name
   and tvar = tc.class_parameter

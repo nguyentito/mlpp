@@ -72,6 +72,7 @@ let rec explicit_or_implicit pos b e =
 
 (** {2 From user's syntax to internal term representation} *)
 
+
 let variables_of_typ =
   let rec vtyp accu = function
     | TyVar (_, TName x) ->
@@ -79,6 +80,15 @@ let variables_of_typ =
 
     | TyApp (_, _, ts) ->
         List.fold_left vtyp accu ts
+  in
+    vtyp StringSet.empty
+
+let constructors_of_typ =
+  let rec vtyp accu = function
+    | TyVar (_, _) -> accu
+
+    | TyApp (_, TName x, ts) ->
+        List.fold_left vtyp (StringSet.add x accu) ts
   in
     vtyp StringSet.empty
 

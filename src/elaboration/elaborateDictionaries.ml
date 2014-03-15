@@ -149,15 +149,30 @@ and algebraic_dataconstructor env (_, DName k, ts, kty) =
   check_wf_scheme env ts kty;
   bind_scheme (Name k) ts [] kty env
 
-and introduce_type_parameters env ts =
-  List.fold_left (fun env t -> bind_type_variable t env) env ts
+and introduce_type_parameters env ts ty =
+  (* Additional parameter: the type we want to generalize
+     This way, we can use it to find out what variables are
+     constructor variables *)
+  let rec f = function
+    | TyVar _ -> []
+    | TyApp (_, TName x, args) ->
+      (if x.[0] = '\'' then [TName x] else [])
+      @ List.concat (List.map f args)
+  in
+  let tcvars = f ty in
+  let (tcs, ts) = List.partition (fun x -> List.mem x tcvars) ts in
+  let env = List.fold_left (fun env t -> bind_type_variable t env) env ts in
+  List.fold_left (fun env t -> bind_type_constructor_variable t env) env tcs
 
 and check_wf_scheme env ts ty =
-  check_wf_type (introduce_type_parameters env ts) KStar ty
+  check_wf_type (introduce_type_parameters env ts ty) KStar ty
 
 and check_wf_type env xkind = function
   | TyVar (pos, t) ->
     let tkind = lookup_type_kind pos t env in
+    let (TName x) = t in
+    (* TODO: remove debug msg *)
+    print_endline x;
     check_equivalent_kind pos xkind tkind
 
   | TyApp (pos, t, tys) ->
@@ -202,7 +217,13 @@ and check_equal_types pos ty1 ty2 =
     raise (IncompatibleTypes (pos, ty1, ty2))
 
 and type_application pos env x tys =
-  List.iter (check_wf_type env KStar) tys;
+  begin
+    (* We're more permissive when using higher kinded polymorphism
+       TODO: in this case, check that the kinds of the type variables
+       match the kinds of the type-level terms *)
+    if not (Fts.on ())
+    then List.iter (check_wf_type env KStar) tys
+  end;
   let (ts, (_, ty)) = lookup pos x env in
   try
     substitute (List.combine ts tys) ty
@@ -481,7 +502,8 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   if is_value_form e then begin
 
     (* Checks wrt typeclasses *)
-    let ty_vars = type_variable_set xty in
+    let ty_vars = TSet.union (type_variable_set xty) 
+      (if Fts.on () then type_constructor_set xty else TSet.empty) in
     List.iter begin fun (ClassPredicate (_, a)) ->
       if not (TSet.mem a ty_vars)
       (* unreachable constraint!
@@ -492,7 +514,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
     (* CHECK: is this correct? *)
 
     let e = eforall pos ts e in
-    let env' = introduce_type_parameters env ts in
+    let env' = introduce_type_parameters env ts xty in
     let env' = List.fold_left (flip bind_dictionary) env' ps in
     let e, ty = expression env' e in
     check_equal_types pos xty ty;
@@ -674,10 +696,6 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
     then bind_type_constructor_variable tvar env
     else bind_type_variable             tvar env in
   check_wf_type env' KStar ty;
-
-  begin
-    if is_constr_class then print_endline "foo"
-  end;
 
   begin
     if not ((is_constr_class && TSet.mem tvar (type_constructor_set ty))

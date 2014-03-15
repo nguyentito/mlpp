@@ -55,6 +55,10 @@ val explicit_or_implicit :
 (** [variables_of_typ ty] returns the type variables of [ty]. *)
 val variables_of_typ : Types.mltype -> Misc.StringSet.t
 
+(** [variables_of_typ ty] returns the type constructors of [ty].
+    (Morally, what we're looking for is variables of hi*)
+val constructors_of_typ : Types.mltype -> Misc.StringSet.t
+
 (** [arrow env x1 x2] builds the internal representation of the
     type [x1 -> x2]. *)
 val arrow :

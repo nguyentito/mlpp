@@ -89,9 +89,32 @@ class_members          = record_type
     Errors.fatal [$startpos; $endpos]
       "The same type parameter as in the class must be used by superclasses.";
   let superclasses = List.map (fun (ClassPredicate (k, _)) -> k) superclasses in
-  let is_constructor_class = let (TName x) = class_parameter in
-                             x.[0] <> '\'' in
-  { is_constructor_class; class_position; superclasses;
+  (* class var doesn't start with ' -> denotes constructor class *)
+  let is_cc = let (TName x) = class_parameter in
+              x.[0] <> '\'' in
+
+  (* constructor class => mark all occurrences of the constructor
+     variable x with a prefix ' to distinguish it from
+     a defined datatype 
+     (it's hackish, but it mostly works)
+  *)
+  let prefix_quote (TName x) = TName (String.concat "" ["'"; x]) in
+  let rec recursive_prefix_quote = function
+    | TyApp (pos, t, args) ->
+      TyApp (pos,
+             (if is_cc && t = class_parameter then prefix_quote t else t),
+             List.map recursive_prefix_quote args)
+    | x -> x
+  in
+  let class_parameter =
+    if is_cc then prefix_quote class_parameter else class_parameter in
+
+  let class_members = if not is_cc then class_members else begin
+    let f (pos, lname, ty) = (pos, lname, recursive_prefix_quote ty) in
+    List.map f class_members
+  end in
+
+  { is_constructor_class = is_cc; class_position; superclasses;
     class_parameter; class_members; class_name }
 }
 

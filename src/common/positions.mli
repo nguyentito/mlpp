@@ -58,6 +58,7 @@ val end_of_position: position -> Lexing.position
 val join : position -> position -> position
 
 val lex_join : Lexing.position -> Lexing.position -> position
+val pos_from_single_lex : Lexing.position -> position
 
 val ljoinf : ('a -> position) -> 'a list -> position
 

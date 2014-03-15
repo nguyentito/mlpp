@@ -45,7 +45,7 @@ module type TypingSyntax = sig
   type binding
 
   val binding
-    : Lexing.position -> name -> mltype option -> binding
+    : Positions.position -> name -> mltype option -> binding
 
   val destruct_binding
     : binding -> name * mltype option
@@ -55,7 +55,7 @@ module type TypingSyntax = sig
   type instantiation
 
   val instantiation
-    : Lexing.position -> instantiation_kind -> instantiation
+    : Positions.position -> instantiation_kind -> instantiation
 
   val destruct_instantiation_as_type_applications
     : instantiation -> mltype list option

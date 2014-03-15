@@ -5,10 +5,15 @@
   open GAST
   open Types
   open Positions
+  open Operators
 
   let fresh_record_name =
     let r = ref 0 in
     fun () -> incr r; Name ("_record_" ^ string_of_int !r)
+
+
+  let instantiation = instantiation =< pos_from_single_lex
+  let binding = binding =< pos_from_single_lex
 
 %}
 

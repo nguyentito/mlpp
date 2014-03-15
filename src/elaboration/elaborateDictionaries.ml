@@ -505,7 +505,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
               (
                 nowhere,
                 ExplicitTyping.binding
-                  Lexing.dummy_pos
+                  nowhere
                   $ dictionary_var_name cl tvar
                   $ Some (class_predicate_to_type cl_pred),
                 next
@@ -811,7 +811,7 @@ and instance_definition big_env small_env inst_def =
       nowhere,
       Name "WTFITS??",
       (* Instantiation of the record type *)
-      instantiation Lexing.dummy_pos (* FIXME: wtf?!  *)
+      instantiation nowhere
         $ TypeApplication (List.map (fun x -> TyVar (nowhere, x)) tvars)
         (* CHECK: If G is nullary, then this is the empty list,
            so morally it should work (bitch) *)
@@ -895,7 +895,7 @@ and instance_definition big_env small_env inst_def =
             (
               nowhere,
               ExplicitTyping.binding
-                Lexing.dummy_pos
+                nowhere
                 $ dictionary_var_name cl var
                 $ Some (class_predicate_to_type cl_pred),
               next

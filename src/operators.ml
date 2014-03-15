@@ -15,3 +15,5 @@ let ( &&& ) f g = fun x -> (f x, g x)
 let flip f = fun x y -> f y x
 let id : 'a. 'a -> 'a = fun x -> x
 
+
+let curry f = fun x y -> f (x, y)

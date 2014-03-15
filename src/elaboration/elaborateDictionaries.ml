@@ -13,6 +13,16 @@ open Misc
 (* reduces syntactic noise *)
 let nowhere = undefined_position
 
+(* utility function *)
+let chop_head (TName str) = TName (String.sub str 1 (String.length str - 1))
+let rec chop_head_rec = function
+  | TyApp (pos, t, args) ->
+    let (TName str) = t in
+    TyApp (pos, (if str.[0] = '\'' then chop_head t else t),
+           List.map chop_head_rec args)
+  | x -> x
+
+
 (* Using global mutable state to handle namespace segregation
    between methods and variables *)
 
@@ -88,10 +98,6 @@ and class_implication =
        that imp is an "implication" for Y (actually, when we have X => Y, the implication
        is in the other way: Y "implies" X) *)
 
-
-(* CHECK: quick hack *)
-let module_access module_name (Name field) =
-  ERecordAccess (nowhere, EVar (nowhere, module_name, []), LName field)
 
 (* Entry point of the module *)
 let rec program p = 
@@ -170,9 +176,6 @@ and check_wf_scheme env ts ty =
 and check_wf_type env xkind = function
   | TyVar (pos, t) ->
     let tkind = lookup_type_kind pos t env in
-    let (TName x) = t in
-    (* TODO: remove debug msg *)
-    print_endline x;
     check_equivalent_kind pos xkind tkind
 
   | TyApp (pos, t, tys) ->
@@ -237,6 +240,23 @@ and expression env = function
     let types_assoc = List.combine tvars tys in
     let f term (ClassPredicate (k, a)) =
       let target = List.assoc a types_assoc in
+      let target = if not (lookup_class pos k env).is_constructor_class 
+        then target
+        (* Another hack for constructor classes... *)
+        else match target with
+          | TyVar (pos, TName x) -> if x.[0] = '\''
+            then TyVar (pos, TName x)
+            else TyApp (pos, TName x, [])
+          | _ -> assert false
+      in
+      (let (TName x) = k in print_string "~> "; print_endline x);
+      let string_of_type ty = ASTio.(XAST.(to_string pprint_ml_type ty)) in
+      let foo_of_type = function
+        | TyVar _ -> "VAR "
+        | TyApp _ -> "APP " in
+      print_string (foo_of_type target);
+      print_string " # ";
+      print_endline (string_of_type target);
       match find_parent_dict_proof env (k, target) with
         | None -> assert false (* TODO: error reporting *)
         | Some deriv ->
@@ -538,7 +558,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
     and ty_elaborated = ntyarrow nowhere (List.map class_predicate_to_type ps) ty
     in
     (* /!\ The piece of AST we produce should have an elaborated type,
-       but the type schem we add to the environment is the original one! *)
+       but the type scheme we add to the environment is the original one! *)
     (ValueDef (pos, ts, [], (x, ty_elaborated), EForall (pos, ts, e)),
      bind_scheme x ts ps ty env)
 
@@ -666,12 +686,14 @@ and class_definition env cdef =
                       env members in
 
   if cdef.is_constructor_class then begin
-    let f (_, LName x, t) = (Name x, t) in
+    let f (_, LName x, t) = (Name x, chop_head_rec t) in
     (BModuleSig ((let (TName x) = cname in "Class_" ^ x),
-                 tvar,
+                 chop_head tvar,
+                 (* TODO: dict_super_fields are modules ! *)
                  List.map f (dict_super_fields @ members))
      :: accessors,
       env)
+
   end else begin
     let dict_t = DRecordType ([tvar], dict_super_fields @ members) in
     let dict_type_def = TypeDef (nowhere, KStar, 
@@ -709,12 +731,14 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
 
   let accessor_def = if is_constr_class then begin
     (* TODO: centralize naming conventions *)
-    let inst_mod_name = let (TName x) = cname and (TName y) = tvar in
-                        Name ("Instance_" ^ x ^ "_" ^ y) in
+    let inst_mod_name =
+      let (TName x) = cname
+      and (TName y) = chop_head tvar in
+      "Instance_" ^ x ^ "_" ^ y in
     BModule (higher_kinded_poly_function env [tvar]
                [ClassPredicate (cname, tvar)]
                (accessor_name, ty) 
-               (module_access inst_mod_name accessor_name))
+               (EModuleAccess (ModulePath [inst_mod_name], accessor_name)))
 
   end else begin
     let nw = nowhere in
@@ -737,20 +761,28 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
 
 and higher_kinded_poly_function env type_con_vars class_preds binding expr =
   let (Name name, ty) = binding in
+  let binding = (Name name, chop_head_rec ty) in
   let type_con_args =
-    List.map (fun (TName x) -> ("T_" ^ x, ("TypeCon", None))) type_con_vars
+    let f tname = let (TName x) = chop_head tname in
+                  ("T_" ^ x, ("TypeCon", None))
+    in
+    List.map f type_con_vars
   in
   let class_args =
-    List.map (fun (ClassPredicate (TName c, TName v)) ->
-      let param = (lookup_class nowhere (TName c) env).class_parameter in
+    List.map (fun (ClassPredicate (TName c, tv)) ->
+      let param = chop_head
+        (lookup_class nowhere (TName c) env).class_parameter in
+      let (TName v) = chop_head tv in
       (* functor (Instance_Foo_f : Class_Foo with type 'a m = 'a T_f.t) -> ... *)
       ("Instance_" ^ c ^ "_" ^ v, ("Class_" ^ c, Some (param, "T_" ^ v ^ ".t")))
     ) class_preds
   in
   let type_con_aliases = 
-    List.map (fun (TName x) -> 
+    let f tname =  
+      let (TName x) = chop_head tname in
       ExternalType (nowhere, [TName "'a"], TName x, "'a T_" ^ x ^ ".t")
-    ) type_con_vars
+    in
+    List.map f type_con_vars
   in
   { module_name = "Wrapper_" ^ name;
     module_functor_args = type_con_args @ class_args;
@@ -1192,3 +1224,25 @@ and elaborate_parent_proof_into_expr env =
         (eapp nowhere) var args
 
   in f (* #yolo *)
+
+(* Constructor classes -> modules instead of dictionaries *)
+(* returns a module_expr *)
+and elaborate_parent_proof_into_expr_cc env = function
+  | InstLeafFromDef (inst_def, _) ->
+    let (TName class_name) = inst_def.instance_class_name 
+    and (TName index     ) = inst_def.instance_index in
+    ModulePath ["Instance_" ^ class_name ^ "_" ^ index]
+
+  | InstLeafFromCtx class_impl ->
+    let rec handle_impl acc = function
+      | InstInCtx (ClassPredicate (TName cl, TName var)) ->
+        ("Instance_" ^ cl ^ "_" ^ var) :: acc
+      | InstImplied (TName supcl, TName cl, impl) ->
+        let acc = ("Superclass_" ^ supcl ^ "_" ^ cl) :: acc in
+        handle_impl acc impl
+    in
+    ModulePath (handle_impl [] class_impl)
+  
+  (* No "instance ['s] Monad ('s state) ..." *)
+  | InstBranch _ -> assert false
+

@@ -28,6 +28,11 @@ module Make (P : Types.TypingSyntax) = struct
                             module_members : block list;
                             module_is_recursive : bool
                           }
+  (* No support for functor inside modules... *)
+  and module_expr =
+    | FunctorApp of string * module_expr list
+    | ModulePath of string list 
+
 
   and class_definition = {
     is_constructor_class : bool;
@@ -80,8 +85,12 @@ module Make (P : Types.TypingSyntax) = struct
     | ERecordAccess of position * expression * lname
     | ERecordCon of position * name * instantiation * record_binding list  (* TODO: this should be a set *)
 
-    (* let module X = ... in ... *)
+    (* let module Foobar = ... in ... *)
     | ELocalModule of module_definition * expression
+    (* Access a member of a module;
+       this actually means (let module X = (...) in X.(...),
+       since Set.Make(String).empty is a syntax error *)
+    | EModuleAccess of module_expr * name
 
   (** Constant. *)
   and primitive =

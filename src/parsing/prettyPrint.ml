@@ -165,6 +165,9 @@ module Make (GAST : AST.GenericS) = struct
       in
       group (ts ^^ expression e)
 
+    | EModuleAccess (mod_expr, name) ->
+      group (module_access mod_expr name)
+
   and instantiation i =
     does_not_exist_in_ocaml (fun () ->
       match destruct_instantiation_as_type_applications i with
@@ -477,6 +480,15 @@ module Make (GAST : AST.GenericS) = struct
     ^/^ parens (!^ name ^/^ module_type_annot (Some ty))
     ^/^ !^ "->"
   )
+
+  and module_access mod_expr (Name name) =
+    module_expr mod_expr ^/^ !^ ("." ^ name)
+
+  and module_expr = function
+    | FunctorApp (fctr, args) ->
+      !^ fctr ^^ separate_map empty (fun x -> parens (module_expr x)) args
+    | ModulePath mod_names ->
+      separate_map (!^ ".") (!^) mod_names
       
   and block = function
     | BClassDefinition c ->
@@ -499,7 +511,7 @@ module Make (GAST : AST.GenericS) = struct
   program, expression
 
   let program b = fst (printer b)
-
+ 
   let expression = snd (printer false)
 
   let ml_type b = ml_type b

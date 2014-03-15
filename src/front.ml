@@ -93,7 +93,7 @@ let save_as ext ?(check = ignore) ?(skip = false) f =
       let cout = open_out filename in
       PPrint.ToChannel.pretty 0.8 100 cout printed_y;
       close_out cout;
-      check filename
+      (if Fts.on () then ignore else check) filename
     end;
     y
 
@@ -125,8 +125,7 @@ let elaborate_type_annotations : (IAST.program, XAST.program) pass
 )
 
 let elaborate_dictionaries : (XAST.program, XAST.program) pass
-(* = save_as ".mlr" ~check:is_explicitly_typed_syntax (fun xast _ -> *)
-= save_as ".mlr" (fun xast _ ->
+= save_as ".mlr" ~check:is_explicitly_typed_syntax (fun xast _ ->
   let rast = ElaborateDictionaries.program xast in
   (rast, ASTio.XAST.pprint_program rast)
 )

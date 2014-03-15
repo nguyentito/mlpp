@@ -676,6 +676,10 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
   check_wf_type env' KStar ty;
 
   begin
+    if is_constr_class then print_endline "foo"
+  end;
+
+  begin
     if not ((is_constr_class && TSet.mem tvar (type_constructor_set ty))
             || (not is_constr_class && TSet.mem tvar (type_variable_set ty)))
       (* unreachable constraint / ambiguous type variable *)
@@ -687,12 +691,12 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
 
   let accessor_def = if is_constr_class then begin
     (* TODO: centralize naming conventions *)
-    let module_name = let (TName str) = cname in
-                      Name ("Class_" ^ str) in
+    let inst_mod_name = let (TName x) = cname and (TName y) = tvar in
+                        Name ("Instance_" ^ x ^ "_" ^ y) in
     BModule (higher_kinded_poly_function env [tvar]
                [ClassPredicate (cname, tvar)]
                (accessor_name, ty) 
-               (module_access module_name accessor_name))
+               (module_access inst_mod_name accessor_name))
 
   end else begin
     let nw = nowhere in
@@ -727,7 +731,7 @@ and higher_kinded_poly_function env type_con_vars class_preds binding expr =
   in
   let type_con_aliases = 
     List.map (fun (TName x) -> 
-      ExternalType (nowhere, [TName "'a"], TName x, "T_" ^ x ^ ".t")
+      ExternalType (nowhere, [TName "'a"], TName x, "'a T_" ^ x ^ ".t")
     ) type_con_vars
   in
   { module_name = "Wrapper_" ^ name;
@@ -736,7 +740,9 @@ and higher_kinded_poly_function env type_con_vars class_preds binding expr =
     module_members = [BTypeDefinitions (TypeDefs (nowhere, type_con_aliases));
                       BDefinition (BindValue (
                         nowhere,
-                        [ValueDef (nowhere, [], [], binding, expr)]))] }
+                        [ValueDef (nowhere, [], [], binding, expr)]))];
+    module_is_recursive = false
+  }
                            
 
 

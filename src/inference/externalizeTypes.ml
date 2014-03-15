@@ -225,7 +225,10 @@ let export is_type_scheme =
                 let name =
                   match var_or_sym v with
                     | TyVar (_, name) -> name
-                    | _ -> assert false
+                    | TyApp (_, TName name, _) ->
+                      (* Crude hack to support constructor classes
+                         without modifying the code in-depth *)
+                      if Fts.on () then TName name else assert false
                 in
                 if IntRank.compare desc.rank IntRank.none = 0 then (
                   visited := v :: !visited;

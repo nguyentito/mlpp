@@ -405,7 +405,9 @@ let solve env pool c =
 
 
   in (
-    ignore (solve env pool [] c);
+    (* TODO: remove this *)
+    let foo = (solve env pool [] c) in
+    print_endline (string_of_int (List.length foo));
     !answer
   )
 

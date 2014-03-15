@@ -448,11 +448,37 @@ module Make (GAST : AST.GenericS) = struct
     !^ "val" ^/^ !^ l ^/^ !^ ":" ^/^ ml_type ty
 
   and module_struct mod_def =
-    !^ "TODO: implement modules"
-    (* failwith "TODO: implement me!" *)
+    if not produce_ocaml then empty else begin
+      group (
+        group (
+          !^ (if mod_def.module_is_recursive then "module rec" else "module")
+          ^/^ !^ (mod_def.module_name)
+          ^/^ module_type_annot mod_def.module_signature
+          ^/^ !^ "="
+        )
+        ^/^ functor_args mod_def.module_functor_args
+        ^/^ !^ "struct"
+        ^/^ nest 2 (program mod_def.module_members)
+        ^/^ !^ "end"
+      )
+    end
+      
+  and module_type_annot = function
+    | None -> empty
+    | Some (name, with_type) -> !^ ":" ^/^ !^ name ^/^ begin match with_type with
+        | None -> empty
+        | Some (TName t, str) ->
+          !^ "with type" ^/^ !^ "'a" ^/^ !^ t ^/^ !^ "=" ^/^ !^ "'a" ^/^ !^ str
+    end
 
-  in
-  let block = function
+  and functor_args args = separate_map (break 1) functor_arg args
+  and functor_arg (name, ty) = group (
+    !^ "functor"
+    ^/^ parens (!^ name ^/^ module_type_annot (Some ty))
+    ^/^ !^ "->"
+  )
+      
+  and block = function
     | BClassDefinition c ->
       [class_definition c]
     | BInstanceDefinitions ts ->
@@ -465,9 +491,10 @@ module Make (GAST : AST.GenericS) = struct
       [module_sig name tycon members]
     | BModule mod_def ->
       [module_struct mod_def]
-  in
-  let program p =
+
+  and program p =
     separate (break 1) (List.(flatten (map block p)))
+
   in
   program, expression
 

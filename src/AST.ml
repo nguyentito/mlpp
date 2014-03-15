@@ -26,6 +26,7 @@ module Make (P : Types.TypingSyntax) = struct
                             module_functor_args : (string * module_type) list;
                             module_signature : module_type option;
                             module_members : block list;
+                            module_is_recursive : bool
                           }
 
   and class_definition = {

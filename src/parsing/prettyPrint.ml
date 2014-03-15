@@ -430,6 +430,27 @@ module Make (GAST : AST.GenericS) = struct
       )
     )
 
+  and module_sig name (TName tycon) members =
+    if not produce_ocaml then empty else begin
+      group (
+        group (
+          !^ "module type"
+          ^/^ !^ name
+          ^/^ !^ "="
+        ) ^/^ nest 2 (!^ "sig"
+                      ^/^ group (!^ "type 'a" ^/^ !^ tycon)
+                      ^/^ group (separate_map (break 1) sig_val members)) ^/^ !^ "end"
+      )
+
+    end
+
+  and sig_val (Name l, ty) =
+    !^ "val" ^/^ !^ l ^/^ !^ ":" ^/^ ml_type ty
+
+  and module_struct mod_def =
+    !^ "TODO: implement modules"
+    (* failwith "TODO: implement me!" *)
+
   in
   let block = function
     | BClassDefinition c ->
@@ -440,6 +461,10 @@ module Make (GAST : AST.GenericS) = struct
       [type_mutual_definitions ts]
     | BDefinition d ->
       [bind_values d]
+    | BModuleSig (name, tycon, members) ->
+      [module_sig name tycon members]
+    | BModule mod_def ->
+      [module_struct mod_def]
   in
   let program p =
     separate (break 1) (List.(flatten (map block p)))

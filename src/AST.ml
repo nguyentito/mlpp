@@ -14,6 +14,20 @@ module Make (P : Types.TypingSyntax) = struct
     | BTypeDefinitions of type_mutual_definitions
     | BDefinition of value_binding
 
+    (* special-purpose hack: module signature with a single type constructor *)
+    | BModuleSig of string * tname * (name * mltype) list (* TODO: should be a set, like all those below... *)
+    (* Functor arguments + members *)
+    | BModule of module_definition
+
+  (* Foo with type 'a <tname> = 'a <string> *)
+  and module_type = string * (tname * string) option
+
+  and module_definition = { module_name : string;
+                            module_functor_args : (string * module_type) list;
+                            module_signature : module_type option;
+                            module_members : block list;
+                          }
+
   and class_definition = {
     is_constructor_class : bool;
     class_position  : position;
@@ -64,6 +78,9 @@ module Make (P : Types.TypingSyntax) = struct
     (** Records. *)
     | ERecordAccess of position * expression * lname
     | ERecordCon of position * name * instantiation * record_binding list  (* TODO: this should be a set *)
+
+    (* let module X = ... in ... *)
+    | ELocalModule of module_definition * expression
 
   (** Constant. *)
   and primitive =

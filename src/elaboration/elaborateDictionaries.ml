@@ -89,12 +89,16 @@ and class_implication =
        is in the other way: Y "implies" X) *)
 
 
+(* CHECK: quick hack *)
+let module_access module_name (Name field) =
+  ERecordAccess (nowhere, EVar (nowhere, module_name, []), LName field)
+
 (* Entry point of the module *)
-let rec program p = handle_error List.(fun () ->
-  flatten (fst (Misc.list_foldmap block ElaborationEnvironment.initial p))
-)
-
-
+let rec program p = 
+  (if Fts.on () then [BModuleSig ("TypeCon", TName "t", [])] else [])
+  @ handle_error List.(fun () ->
+    flatten (fst (Misc.list_foldmap block ElaborationEnvironment.initial p))
+  )
 
 and block env = function
   | BTypeDefinitions ts ->
@@ -106,17 +110,14 @@ and block env = function
     ([BDefinition d], env)
 
   | BClassDefinition c ->
-    let (dict_t, accessors, env) = class_definition env c in
-    let dict_type_def = TypeDef (nowhere, KStar, 
-                                 (class_to_type_name c.class_name),
-                                 dict_t) in
-    ([BTypeDefinitions (TypeDefs (nowhere, [dict_type_def]));
-      BDefinition (BindValue (nowhere, accessors))],
-     env)
+    class_definition env c
 
   | BInstanceDefinitions is ->
     let (dict_defs, env) = instance_definitions env is in
     ([BDefinition (BindRecValue (nowhere, dict_defs))], env)
+
+  | BModuleSig _ -> assert false
+  | BModule _ -> assert false
 
 and type_definitions env (TypeDefs (_, tdefs)) =
   let env = List.fold_left env_of_type_definition env tdefs in
@@ -624,12 +625,6 @@ and class_definition env cdef =
 
   let env = bind_class cname cdef env in
 
-  (* (if cdef.is_constructor_class then ( *)
-  (*   let (TName x) = cname in *)
-  (*   failwith ("Awesome! " ^ x ^ " is a constructor class!") *)
-  (*  )); *)
-      
-
   (* Handle superclasses *)
   let super = cdef.superclasses in
   Misc.iter_unordered_pairs (check_unrelated_superclasses pos env) super;
@@ -640,14 +635,30 @@ and class_definition env cdef =
   (* TODO: prevent 2 members from having the same name
      also, should we allow shadowing of an overloaded name
      by another one?
+     --> methods names are globally unique???
+     possible to enforce using the global hash tables
   *)
   let members = cdef.class_members in
   let (accessors, env) =
     Misc.list_foldmap (class_member cdef.is_constructor_class cname tvar)
                       env members in
-  let dict_record = DRecordType ([tvar], dict_super_fields @ members) in
 
-  (dict_record, accessors, env)
+  if cdef.is_constructor_class then begin
+    let f (_, LName x, t) = (Name x, t) in
+    (BModuleSig ((let (TName x) = cname in "Class_" ^ x),
+                 tvar,
+                 List.map f (dict_super_fields @ members))
+     :: accessors,
+      env)
+  end else begin
+    let dict_t = DRecordType ([tvar], dict_super_fields @ members) in
+    let dict_type_def = TypeDef (nowhere, KStar, 
+                                 (class_to_type_name cname),
+                                 dict_t) in
+    (BTypeDefinitions (TypeDefs (nowhere, [dict_type_def]))
+     :: accessors,
+     env)
+  end
 
 and check_unrelated_superclasses pos env k1 k2 =
   if is_superclass pos k1 k2 env || is_superclass pos k2 k1 env then
@@ -659,10 +670,11 @@ and superclass_dictionary_field tvar cname sc_name =
   (nowhere, field_name, class_to_dict_type sc_name tvar)
 
 and class_member is_constr_class cname tvar env (pos, l, ty) =
-  check_wf_type ((if is_constr_class
-                  then bind_type_constructor_variable
-                  else bind_type_variable)
-                    tvar env) KStar ty;
+  let env' = if is_constr_class
+    then bind_type_constructor_variable tvar env
+    else bind_type_variable             tvar env in
+  check_wf_type env' KStar ty;
+
   begin
     if not ((is_constr_class && TSet.mem tvar (type_constructor_set ty))
             || (not is_constr_class && TSet.mem tvar (type_variable_set ty)))
@@ -671,20 +683,62 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
   end;
 
   (* generate code for accessor *)
-  let nw = nowhere in
-  let dict_type = class_to_dict_type cname tvar in
-  let accessor_elaborated_type = ntyarrow nw [dict_type] ty
-  and accessor_expr = ELambda (nw, (Name "z", dict_type),
-                               ERecordAccess (nw, EVar (nw, Name "z", []), l))
-  and accessor_name = let (LName str) = l in Name str in
+  let accessor_name = let (LName str) = l in Name str in
+
+  let accessor_def = if is_constr_class then begin
+    (* TODO: centralize naming conventions *)
+    let module_name = let (TName str) = cname in
+                      Name ("Class_" ^ str) in
+    BModule (higher_kinded_poly_function env [tvar]
+               [ClassPredicate (cname, tvar)]
+               (accessor_name, ty) 
+               (module_access module_name accessor_name))
+
+  end else begin
+    let nw = nowhere in
+    let dict_type = class_to_dict_type cname tvar in
+    let accessor_elaborated_type = ntyarrow nw [dict_type] ty
+    and accessor_expr = ELambda (nw, (Name "z", dict_type),
+                                 ERecordAccess (nw, EVar (nw, Name "z", []), l))
+    in
   (* Note: in the elaborated code, => was converted into ->, 
      but the binding added to the environment has the type scheme
      with => *)
-  (ValueDef (nowhere, [tvar], [(* no class predicate *)],
-             (accessor_name, accessor_elaborated_type),
-             accessor_expr),
+    BDefinition (BindValue (nowhere, [
+      ValueDef (nowhere, [tvar], [(* no class predicate *)],
+                (accessor_name, accessor_elaborated_type),
+                accessor_expr)]))
+  end
+  in
+  (accessor_def,
    bind_method_scheme accessor_name [tvar] [ClassPredicate (cname, tvar)] ty env)
-    
+
+and higher_kinded_poly_function env type_con_vars class_preds binding expr =
+  let (Name name, ty) = binding in
+  let type_con_args =
+    List.map (fun (TName x) -> ("T_" ^ x, ("TypeCon", None))) type_con_vars
+  in
+  let class_args =
+    List.map (fun (ClassPredicate (TName c, TName v)) ->
+      let param = (lookup_class nowhere (TName c) env).class_parameter in
+      (* functor (Instance_Foo_f : Class_Foo with type 'a m = 'a T_f.t) -> ... *)
+      ("Instance_" ^ c ^ "_" ^ v, ("Class_" ^ c, Some (param, "T_" ^ v ^ ".t")))
+    ) class_preds
+  in
+  let type_con_aliases = 
+    List.map (fun (TName x) -> 
+      ExternalType (nowhere, [TName "'a"], TName x, "T_" ^ x ^ ".t")
+    ) type_con_vars
+  in
+  { module_name = "Wrapper_" ^ name;
+    module_functor_args = type_con_args @ class_args;
+    module_signature = None;
+    module_members = [BTypeDefinitions (TypeDefs (nowhere, type_con_aliases));
+                      BDefinition (BindValue (
+                        nowhere,
+                        [ValueDef (nowhere, [], [], binding, expr)]))] }
+                           
+
 
 (***** Elaborate instances *****)
 

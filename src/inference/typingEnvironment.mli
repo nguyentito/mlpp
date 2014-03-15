@@ -41,8 +41,9 @@ and datatype_info =
   | Sum     of (dname * variable) list
   | Product of variable list * crterm * (lname * crterm) list
 
-(* superclasses, parameter, bindings *)
-type class_info = ClassInfo of tname list * variable * (lname * crterm) list
+(* superclasses, parameter, bindings, is_constructor_class *)
+type class_info =
+    ClassInfo of tname list * variable * (lname * crterm) list * bool
 (* parameters, context, internal representation *)
 type instance_info =
     InstanceInfo of variable list * Constraint.tclass_constraint * crterm

@@ -73,7 +73,9 @@ let as_type_variable (_, v, _) =
    - its type. *)
 type data_constructor = int * variable list * crterm
 
-type class_info = ClassInfo of tname list * variable * (lname * crterm) list
+(* superclasses, parameter, members, is_constructor_class *)
+type class_info =
+    ClassInfo of tname list * variable * (lname * crterm) list * bool
 type instance_info =  
     InstanceInfo of variable list * Constraint.tclass_constraint * crterm
 
@@ -317,7 +319,8 @@ let lookup_class ?pos env k =
 let lookup_instance ?pos env k g = assert false
 
 let fresh_methods_of_class pos env k =
-  let ClassInfo (_, v, ltys) = lookup_class ~pos:pos env k in
+  let ClassInfo (_, v, ltys, is_cc) = lookup_class ~pos:pos env k in
+  (* TODO: maybe do something constructor-specific? *)
   let [v_fresh], ltys_fresh = fresh_types [v] (fun f ->
     List.map (fun (l, ty) -> (l, f ty)) ltys
   ) in

@@ -36,8 +36,6 @@ let rec head_constructor v =
    constraints on subtypes, returning None if no expansion is possible *)
 (* TODO: what to do about the exceptions potentially raised
    by unify? Upfront checks should prevent them... *)
-(* This code is pure superstition. It is a cargo cult ritual meant
-   to make magic happen by imitation of existing working code. *)
 let e_expand pos pool (k, v) =
   let open Types in
   match head_constructor v with
@@ -119,7 +117,7 @@ let contains k1 k2 =
 
 let setup_class_rules env =
   let open TypingEnvironment in
-  let setup_class (k, ClassInfo (ks, _, _)) =
+  let setup_class (k, ClassInfo (ks, _, _, _)) =
     add_implication k ks
   in
   let setup_instance ((k,g), InstanceInfo (beta, predicates, gb)) =

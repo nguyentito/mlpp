@@ -590,7 +590,7 @@ let infer_class tenv tc =
     (l, InternalizeTypes.intern pos tenv' ty)
   in
   let methods = List.map intern_method_type members in
-  let class_info = ClassInfo (super, rq, methods) in
+  let class_info = ClassInfo (super, rq, methods, is_cc) in
   let tenv = add_class pos tenv k class_info in
   (* I think we don't add any constraint to the context,
      only let-binding with principal solved schemes, right? *)
@@ -609,7 +609,8 @@ let infer_instance tenv ti =
   and g = ti.instance_index
   and pos = ti.instance_position
   and tvars = ti.instance_parameters in
-  (* let class_info = lookup_class tenv k in *)
+
+  let (ClassInfo (_, _, _, is_cc)) = lookup_class tenv k in
 
   let rqs, rtenv = fresh_rigid_vars pos tenv tvars in
   let tvars_assoc = List.combine tvars rqs in
@@ -625,14 +626,25 @@ let infer_instance tenv ti =
       | Not_found -> raise (UnboundTypeVariable (pos, a))
   end ti.instance_typing_context in
   
-  (* the code below also check that the type constructor
+  (* if not is_cc then begin *)
+
+  print_endline "mirage coordinator";
+
+  (* the code below also checks that the type constructor
      exists and has the right arity (I think?) *)
-  let term = InternalizeTypes.intern pos tenv'
-    (TyApp (pos, g, List.map (fun x -> TyVar (pos, x)) tvars)) in
+  let term = 
+    if Fts.on () && is_cc 
+    then as_fun tenv' g (* bypass the kind check *)
+    else InternalizeTypes.intern pos tenv'
+      (TyApp (pos, g, List.map (fun x -> TyVar (pos, x)) tvars))
+  in
+
+  print_endline "liberated liberator";
   
   (* Since we use this environment in the rest of the code, 
      methods implementations can use this instance recursively.
-     TODO: mutual recursion between successive instances *)
+     TODO: mutual recursion between successive instances
+     CHECK: isn't that actually already supported? *)
   let tenv =
     let info = InstanceInfo (rqs, typing_context, term) in
     (* includes overlapping instance check *)
@@ -665,6 +677,12 @@ let infer_instance tenv ti =
   in
 
   (tenv, fun c -> instance_ok_constraint ^ c)
+
+  (* end else begin *)
+
+  (*   failwith "foo" *)
+
+  (* end  *)
 
 (** [infer e] determines whether the expression [e] is well-typed
     in the empty environment. *)

@@ -142,7 +142,8 @@ let rec substitute (s : (type_var_name * mltype) list) = function
                  try
                    match List.assoc t s with
                      | TyVar (_, v) -> v
-                     | TyApp _ -> assert false (* TODO: think harder *)
+                     | TyApp (_, t, []) -> t
+                     | _ -> assert false (* TODO: think harder *)
                  with Not_found -> t
                in
                TyApp (pos, t', List.map (substitute s) tys)

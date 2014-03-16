@@ -15,7 +15,9 @@ module Make (P : Types.TypingSyntax) = struct
     | BDefinition of value_binding
 
     (* special-purpose hack: module signature with a single type constructor *)
-    | BModuleSig of string * tname * (name * mltype) list (* TODO: should be a set, like all those below... *)
+    (* module type X = sig type 'a t module A : T val x : foo end *)
+    (* TODO: the list should be a set, like all those below... *)
+    | BModuleSig of string * tname * (string * module_type) list * (name * mltype) list 
     | BModule of module_definition
 
   (* Foo with type 'a <tname> = 'a <string> *)

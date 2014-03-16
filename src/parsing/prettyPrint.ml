@@ -453,7 +453,7 @@ module Make (GAST : AST.GenericS) = struct
       )
     )
 
-  and module_sig name (TName tycon) members =
+  and module_sig name (TName tycon) members_mod members_val =
     if not produce_ocaml then empty else begin
       group (
         group (
@@ -462,13 +462,18 @@ module Make (GAST : AST.GenericS) = struct
           ^/^ !^ "="
         ) ^/^ nest 2 (!^ "sig"
                       ^/^ group (!^ "type 'a" ^/^ !^ tycon)
-                      ^/^ group (separate_map (break 1) sig_val members)) ^/^ !^ "end"
+                      ^/^ separate_map (break 1) sig_mod members_mod
+                      ^/^ separate_map (break 1) sig_val members_val
+        ) ^/^ !^ "end"
       )
 
     end
 
+  and sig_mod (mod_name, mod_type) =
+    group (!^ "module" ^/^ !^ mod_name ^/^ module_type_annot (Some mod_type))
+
   and sig_val (Name l, ty) =
-    !^ "val" ^/^ !^ l ^/^ !^ ":" ^/^ ml_type ty
+    group (!^ "val" ^/^ !^ l ^/^ !^ ":" ^/^ ml_type ty)
 
   and module_struct mod_def =
     if not produce_ocaml then empty else begin
@@ -549,8 +554,8 @@ module Make (GAST : AST.GenericS) = struct
       [type_mutual_definitions ts]
     | BDefinition d ->
       [bind_values true d]
-    | BModuleSig (name, tycon, members) ->
-      [module_sig name tycon members]
+    | BModuleSig (name, tycon, members_mod, members_val) ->
+      [module_sig name tycon members_mod members_val]
     | BModule mod_def ->
       [module_struct mod_def]
 

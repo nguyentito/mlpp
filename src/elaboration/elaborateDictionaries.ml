@@ -101,7 +101,7 @@ and class_implication =
 
 (* Entry point of the module *)
 let rec program p = 
-  (if Fts.on () then [BModuleSig ("TypeCon", TName "t", [])] else [])
+  (if Fts.on () then [BModuleSig ("TypeCon", TName "t", [], [])] else [])
   @ handle_error List.(fun () ->
     flatten (fst (Misc.list_foldmap block ElaborationEnvironment.initial p))
   )
@@ -717,6 +717,7 @@ and class_definition env cdef =
 
   (* Handle superclasses *)
   let super = cdef.superclasses in
+  (* Also checks that the superclasses exist *)
   Misc.iter_unordered_pairs (check_unrelated_superclasses pos env) super;
   let dict_super_fields = List.map (superclass_dictionary_field tvar cname)
                                    super in
@@ -734,13 +735,19 @@ and class_definition env cdef =
                       env members in
 
   if cdef.is_constructor_class then begin
+    let (TName c) = cname in
     let f (_, LName x, t) = (Name x, chop_head_rec t) in
-    (BModuleSig ((let (TName x) = cname in "Class_" ^ x),
-                 chop_head tvar,
-                 (* TODO: dict_super_fields are modules ! *)
-                 List.map f (dict_super_fields @ members))
+    let g (TName spcl) =
+      let x = chop_head (lookup_class pos (TName spcl) env).class_parameter
+      and (TName y) = chop_head tvar in
+      ("Superclass_" ^ spcl ^ "_" ^ c,
+       ("Class_" ^ spcl, Some (x, y)))
+    in
+
+    (BModuleSig ("Class_" ^ c, chop_head tvar,
+                 List.map g super, List.map f members)
      :: accessors,
-      env)
+     env)
 
   end else begin
     let dict_t = DRecordType ([tvar], dict_super_fields @ members) in

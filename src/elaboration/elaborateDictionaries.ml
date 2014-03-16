@@ -836,10 +836,11 @@ and higher_kinded_poly_function env type_con_vars class_con_preds type_vars clas
   { module_name = "Wrapper_" ^ name;
     module_functor_args = type_con_args @ class_con_args;
     module_signature = None;
-    module_members = [BTypeDefinitions (TypeDefs (nowhere, type_con_aliases));
-                      BDefinition (BindValue (
-                        nowhere,
-                        [ValueDef (nowhere, type_vars, class_preds, binding, expr)]))]
+    module_body = ModuleStruct
+      [BTypeDefinitions (TypeDefs (nowhere, type_con_aliases));
+       BDefinition (BindValue (
+         nowhere,
+         [ValueDef (nowhere, type_vars, class_preds, binding, expr)]))]
   }
                            
 
@@ -974,6 +975,19 @@ and instance_definition big_env small_env inst_def =
   (* CHECK: check that every class member is defined
      (uniqueness is already enforced) *)
 
+  let member_fields =
+    List.map 
+      (fun (rec_binding, cl_member_type) ->
+        let compiled_rb_code, computed_type = (* CHECK: names? *)
+          record_binding (env_with_free_tvars cl_member_type) rec_binding
+        in
+        (* Check instance member type against corresponding class
+           member type, correctly instantiated *)
+        check_equal_types pos computed_type cl_member_type;
+        (compiled_rb_code, computed_type)
+      )
+      $ PSet.elements augmented_members_set
+  in
 
   if not class_def.is_constructor_class then begin
 
@@ -991,20 +1005,7 @@ and instance_definition big_env small_env inst_def =
 
       List.append
         (* Members defined by the current class *)
-        (
-          MSet.elements $
-            PM.map
-              (fun (rec_binding, cl_member_type) ->
-                let compiled_rb_code, computed_type = (* CHECK: names? *)
-                  record_binding (env_with_free_tvars cl_member_type) rec_binding
-                in
-                (* Check instance member type against corresponding class
-                   member type, correctly instantiated *)
-                check_equal_types pos computed_type cl_member_type;
-                compiled_rb_code
-              )
-              augmented_members_set
-        )
+        (List.map fst member_fields)
 
        (* Superclass accessors *)
         (List.map 
@@ -1061,7 +1062,51 @@ and instance_definition big_env small_env inst_def =
     (* We're super permissive with constructor classes;
        integrity checks are such a drag... *)
 
+    let member_value_defs =
+      let f (RecordBinding (LName l, expr), ty) = 
+        ValueDef (nowhere, [], [], (Name l, chop_head_rec ty), expr) in
+      List.map f member_fields
+    in
+
+    let (TName cname_str) = cname and (TName index_str) = index
+    and (TName class_var) = chop_head class_def.class_parameter in
+
+    (* Superclass accessors *)
+    let superclass_modules =
+      List.map 
+        (fun spcl ->
+          let (TName spcl_str) = spcl in
+          let spcl_param =
+            chop_head (lookup_class pos spcl big_env).class_parameter
+          in
+          { module_name = "Superclass_" ^ spcl_str ^ "_" ^ cname_str;
+            module_functor_args = []; 
+            module_signature = Some ("Class_" ^ spcl_str,
+                                     Some (spcl_param, class_var));
+            module_body =
+              ModuleExpr (ModulePath ["Instance_" ^ spcl_str ^ "_" ^ index_str])
+          })
+        class_def.superclasses
+    in
     
+    let typedecl = ExternalType (nowhere,
+                                 [TName "'a"],
+                                 TName class_var,
+                                 "'a " ^ index_str) in
+
+    let mod_def = {
+      module_name = "Instance_" ^ cname_str ^ "_" ^ index_str; 
+      module_functor_args = [];
+      module_signature =
+        Some ("Class_" ^ cname_str, Some (TName class_var, index_str));
+      module_body = ModuleStruct (
+        BTypeDefinitions (TypeDefs (nowhere, [typedecl]))
+        :: List.map (fun x -> BModule x) superclass_modules 
+         @ [BDefinition (BindValue (nowhere, member_value_defs))]
+      )
+    }
+    in
+    (VLocalModule mod_def, new_small_env)
 
   end
 

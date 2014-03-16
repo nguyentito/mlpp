@@ -16,7 +16,6 @@ module Make (P : Types.TypingSyntax) = struct
 
     (* special-purpose hack: module signature with a single type constructor *)
     | BModuleSig of string * tname * (name * mltype) list (* TODO: should be a set, like all those below... *)
-    (* Functor arguments + members *)
     | BModule of module_definition
 
   (* Foo with type 'a <tname> = 'a <string> *)
@@ -25,8 +24,13 @@ module Make (P : Types.TypingSyntax) = struct
   and module_definition = { module_name : string;
                             module_functor_args : (string * module_type) list;
                             module_signature : module_type option;
-                            module_members : block list
+                            module_body : module_body
                           }
+
+  and module_body =
+    | ModuleStruct of block list
+    | ModuleExpr of module_expr
+
 
   (* No support for functor inside modules... *)
   and module_expr =

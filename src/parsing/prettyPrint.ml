@@ -480,23 +480,29 @@ module Make (GAST : AST.GenericS) = struct
           ^/^ !^ "="
         )
         ^/^ functor_args mod_def.module_functor_args
-        ^/^ !^ "struct"
-        ^/^ nest 2 (program mod_def.module_members)
-        ^/^ !^ "end"
+        ^/^ module_body mod_def.module_body
       )
     end
       
+  and module_body = function
+    | ModuleStruct blocks ->
+      !^ "struct"
+      ^/^ nest 2 (program blocks)
+      ^/^ !^ "end"
+    | ModuleExpr x -> module_expr x
+
+
   and module_structs_rec mod_defs =
     if not produce_ocaml then empty else begin
       let f mod_def = 
         group (
-          !^ (mod_def.module_name)
-          ^/^ module_type_annot mod_def.module_signature
+          group (
+            !^ (mod_def.module_name)
+            ^/^ module_type_annot mod_def.module_signature
+          )
           ^/^ !^ "="
           ^/^ functor_args mod_def.module_functor_args
-          ^/^ !^ "struct"
-          ^/^ nest 2 (program mod_def.module_members)
-          ^/^ !^ "end"
+          ^/^ module_body mod_def.module_body
         ) 
       in
       !^ "module rec"

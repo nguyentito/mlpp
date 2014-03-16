@@ -24,7 +24,6 @@ let big_global_table = { equivalences = Env.empty;
 (* Destructuring functions which perhaps should not live here... *)
 
 let rec head_constructor v =
-  (* Is this right??????? Who knows! *)
   let desc = UnionFind.find v in
   match desc.structure, desc.name with
     | None, Some tname when desc.kind = Constant -> Some tname
@@ -34,8 +33,8 @@ let rec head_constructor v =
 
 (* E-expansion turns a predicate constraint over a type into
    constraints on subtypes, returning None if no expansion is possible *)
-(* TODO: what to do about the exceptions potentially raised
-   by unify? Upfront checks should prevent them... *)
+(* Upfront checks should prevent the exceptions
+   potentially raised by unify *)
 let e_expand pos pool (k, v) =
   let open Types in
   match head_constructor v with

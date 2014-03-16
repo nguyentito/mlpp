@@ -68,8 +68,11 @@ module Make (GAST : AST.GenericS) = struct
 
   and ml_type_scheme (TyScheme (vars, classes, ty)) =
     (* TODO: classes *)
-    (List.fold_left (fun s v -> s ^^ !^ " " ^^ (tname v)) !^ "forall" vars )
-      ^^ !^ ". " ^^ ml_type ty
+    (List.fold_left (fun s cl -> s ^^ (class_predicate cl) ^^ !^ " => ") !^ "" classes)
+    ^^
+      (List.fold_left (fun s v -> s ^^ !^ " " ^^ (tname v)) !^ "forall" vars )
+    ^^
+      !^ ". " ^^ ml_type ty
 
   and type_application ?generics ((TName sn) as n) ts =
     group (
@@ -103,6 +106,12 @@ module Make (GAST : AST.GenericS) = struct
               group (parens (separate_map comma (ml_type ?generics) xs))
               ^/^ !^ sn
     )
+
+  and class_predicate (ClassPredicate (k, t)) =
+    group (tname k ^/^ tname t)
+
+
+
 
   let printer produce_ocaml =
 
@@ -294,9 +303,6 @@ module Make (GAST : AST.GenericS) = struct
           ^^ break 1
         ) ^^ break 1
       )
-
-  and class_predicate (ClassPredicate (k, t)) =
-    group (tname k ^/^ tname t)
 
   and type_parameters = function
     | [] -> empty

@@ -83,7 +83,7 @@ module Make (P : Types.TypingSyntax) = struct
 
   and datatype_definition =
     | DAlgebraic of (position * dname * tnames * mltype) list
-    | DRecordType of tnames * (position * lname * mltypescheme) list
+    | DRecordType of tnames * (position * lname * mltype) list
 
   (** A value definition consists of a list of explicit universal
       quantifiers, a binding, and an expression. *)

@@ -179,6 +179,7 @@ datatype_definition:
 adt=algebraic_datatype_definition
 {
   fun ts rty ->
+    (* TODO: implement typescheme parsing *)
     let datacon (pos, k, tys) = (pos, k, ts, ntyarrow pos tys rty) in
     DAlgebraic (List.map datacon adt)
 }
@@ -608,7 +609,8 @@ record_type: LBRACE b=separated_list(SEMICOLON, label_type_declaration) RBRACE
 label_type_declaration: l=lname COLON t=mltype
 {
   let pos = lex_join $startpos $endpos in
-  (pos, l, t)
+  (* FIXME: temporary *)
+  (pos, l, TyScheme ([], [], t))
 }
 
 %inline lname: x=LID

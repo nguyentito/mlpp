@@ -19,7 +19,7 @@ module Make (P : Types.TypingSyntax) = struct
     class_parameter : tname;
     superclasses    : tname list;
     class_name      : tname;
-    class_members   : (position * lname * mltype) list; (* TODO: this should be a set, or a map 
+    class_members   : (position * lname * mltypescheme) list; (* TODO: this should be a set, or a map
                                                            Problem : declaration order (should be preserved) *)
   }
 
@@ -83,7 +83,7 @@ module Make (P : Types.TypingSyntax) = struct
 
   and datatype_definition =
     | DAlgebraic of (position * dname * tnames * mltype) list
-    | DRecordType of tnames * (position * lname * mltype) list
+    | DRecordType of tnames * (position * lname * mltypescheme) list
 
   (** A value definition consists of a list of explicit universal
       quantifiers, a binding, and an expression. *)

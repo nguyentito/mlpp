@@ -66,6 +66,11 @@ module Make (GAST : AST.GenericS) = struct
       | _ -> true
     ) (ml_type ?generics ty)
 
+  and ml_type_scheme (TyScheme (vars, classes, ty)) =
+    (* TODO: classes *)
+    (List.fold_left (fun s v -> s ^^ !^ " " ^^ (tname v)) !^ "forall" vars )
+      ^^ !^ ". " ^^ ml_type ty
+
   and type_application ?generics ((TName sn) as n) ts =
     group (
       match as_symbol n with
@@ -353,8 +358,8 @@ module Make (GAST : AST.GenericS) = struct
   and row r =
     separate_map (!^ ";" ^^ break 1) label_type r
 
-  and label_type (_, LName l, ty) =
-    !^ l ^/^ !^ ":" ^/^ ml_type ty
+  and label_type (_, LName l, tysh) =
+    !^ l ^/^ !^ ":" ^/^ ml_type_scheme tysh
 
   and adt_type_parameters = function
     | [] -> empty

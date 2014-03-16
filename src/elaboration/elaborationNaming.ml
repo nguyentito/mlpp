@@ -43,14 +43,12 @@ let superclass_accessor_type_name =
   fun supcl cl ->
     LName (uconcat ["superclass_field"; get_unique_id tbl supcl cl])
 
-(* TODO: if we lift restrictions, the "inst" part won't stay that simple *)
-(* TODO: replace all occurrences of this by dictionary_var_name? *)
+(* Note: if we lift restrictions, the "inst" part won't stay that simple *)
 let superinstance_var_name =
   let tbl = Hashtbl.create 277 in
   fun supinst inst ->
     Name (uconcat ["superinstance_var"; get_unique_id tbl supinst inst])
 
-(* TODO: should take a class predicate as argument instead... *)
 let dictionary_var_name =
   let tbl = Hashtbl.create 277 in
   fun cl_name tvar_name ->

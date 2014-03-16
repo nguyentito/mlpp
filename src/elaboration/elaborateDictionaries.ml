@@ -28,11 +28,13 @@ let rec chop_head_rec = function
 
 (* Using global mutable state to handle namespace segregation
    between methods and variables *)
+(* This restriction is lifted when using the --fts flag *)
 
 let names_hashtbl : (name, bool) Hashtbl.t = Hashtbl.create 277
 (* true iff overloaded name *)
 
-let register_as_normal_name name =
+let register_as_normal_name =
+  if Fts.on () then ignore else fun name ->
   try
     if Hashtbl.find names_hashtbl name
     then raise (OverloadedSymbolCannotBeBound (nowhere, name))
@@ -41,8 +43,13 @@ let register_as_normal_name name =
 
 let register_as_overloaded_name name =
   try
-    if not (Hashtbl.find names_hashtbl name)
-    then raise (OverloadedSymbolCannotBeBound (nowhere, name))
+    if Hashtbl.find names_hashtbl name
+    then (* 2 overloaded names cannot be the same *)
+      let (Name x) = name in
+      raise (LabelAlreadyTaken (nowhere, LName x))
+    else (* namespace segregation between methods and identifiers *)
+        if not (Fts.on ())
+        then raise (OverloadedSymbolCannotBeBound (nowhere, name))
   with
     | Not_found -> Hashtbl.add names_hashtbl name true
 

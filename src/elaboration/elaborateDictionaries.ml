@@ -636,6 +636,8 @@ and class_definition env cdef =
      by another one?
   *)
   let members = cdef.class_members in
+  (* TODO: handle type schemes *)
+  let members = List.map (fun (pos, l, TyScheme(_,_,ty)) -> (pos,l,ty)) members in
   let (accessors, env) = Misc.list_foldmap (class_member cname tvar)
                                            env members in
   let dict_record = DRecordType ([tvar], dict_super_fields @ members) in
@@ -797,7 +799,9 @@ and instance_definition big_env small_env inst_def =
     let f (RecordBinding (name, _)) =
       (* TODO: if we got no matching class member, this List.find will raise Not_found *)
       subst =< proj3_3 =< List.find (((=) name) =< proj2_3) (* #Swag *)
-      $ class_def.class_members
+      (* TODO: handle type schemes *)
+      $ List.map (fun (pos, l, TyScheme(_,_,ty)) -> (pos,l,ty)) class_def.class_members
+      (* $ class_def.class_members *)
     in
     MP.map (id &&& f)  members_set
   in

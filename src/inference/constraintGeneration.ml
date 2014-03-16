@@ -593,7 +593,7 @@ let infer_class tenv tc =
   (* I think we don't add any constraint to the context,
      only let-binding with principal solved schemes, right? *)
 
-  let method_scheme (pos, LName name, ty) =
+  let method_scheme (pos, LName name, TyScheme (_, _, ty)) =
     InternalizeTypes.intern_scheme
       pos tenv name [tvar] [ClassPredicate (k, tvar)] ty
   in

@@ -28,10 +28,13 @@ module Make (P : Types.TypingSyntax) = struct
                             module_members : block list;
                             module_is_recursive : bool
                           }
+
   (* No support for functor inside modules... *)
   and module_expr =
     | FunctorApp of string * module_expr list
     | ModulePath of string list 
+    (* support a special case: struct type 'a t = 'a foobar end *)
+    | InlineStruct of mltype
 
 
   and class_definition = {
@@ -85,8 +88,6 @@ module Make (P : Types.TypingSyntax) = struct
     | ERecordAccess of position * expression * lname
     | ERecordCon of position * name * instantiation * record_binding list  (* TODO: this should be a set *)
 
-    (* let module Foobar = ... in ... *)
-    | ELocalModule of module_definition * expression
     (* Access a member of a module;
        this actually means (let module X = (...) in X.(...),
        since Set.Make(String).empty is a syntax error *)
@@ -117,6 +118,9 @@ module Make (P : Types.TypingSyntax) = struct
       quantifiers, a binding, and an expression. *)
   and value_definition =
     | ValueDef of position * tnames * class_predicates * binding * expression
+    (* let module Foobar = ... in ... *)
+    (* should fail miserably in a value_binding with multiple elements... *)
+    | VLocalModule of module_definition
 
   and pattern =
     | PVar of position * name

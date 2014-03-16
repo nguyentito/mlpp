@@ -132,7 +132,7 @@ module Make (GAST : AST.GenericS) = struct
       annotate (expression e) (ml_type ty)
 
     | EBinding (_, bvs, e) ->
-      group (bind_values bvs ^/^ !^ "in")
+      group (bind_values false bvs ^/^ !^ "in")
       ^//^ group (expression e)
 
     | ERecordAccess (_, e, LName l) ->
@@ -236,9 +236,18 @@ module Make (GAST : AST.GenericS) = struct
          to match O'Caml's pattern language. *)
       assert false
 
-  and bind_values = function
+  and bind_values is_toplevel = function
     | BindValue (_, []) | BindRecValue (_, []) ->
       empty
+
+    (* Handle special cases of interest *)
+    | BindValue (_, [VLocalModule mod_def]) ->
+      (if is_toplevel then empty else !^ "let")
+      ^/^ module_struct ({ mod_def with module_is_recursive = false })
+
+    | BindRecValue (_, [VLocalModule mod_def]) ->
+      assert is_toplevel;
+      module_struct ({ mod_def with module_is_recursive = true })
 
     | BindValue (_, vs) ->
       group (
@@ -482,13 +491,20 @@ module Make (GAST : AST.GenericS) = struct
   )
 
   and module_access mod_expr (Name name) =
-    module_expr mod_expr ^/^ !^ ("." ^ name)
+    parens (
+      !^ "let module X = "
+      ^/^ group (module_expr mod_expr)
+      ^/^ !^ "in"
+      ^/^ !^ ("X." ^ name)
+    )
 
   and module_expr = function
     | FunctorApp (fctr, args) ->
       !^ fctr ^^ separate_map empty (fun x -> parens (module_expr x)) args
     | ModulePath mod_names ->
       separate_map (!^ ".") (!^) mod_names
+    | InlineStruct mltype ->
+      !^ "struct" ^/^ !^ "type 'a t =" ^/^ !^ "'a" ^/^ ml_type mltype ^/^ !^ "end"
       
   and block = function
     | BClassDefinition c ->
@@ -498,7 +514,7 @@ module Make (GAST : AST.GenericS) = struct
     | BTypeDefinitions ts ->
       [type_mutual_definitions ts]
     | BDefinition d ->
-      [bind_values d]
+      [bind_values true d]
     | BModuleSig (name, tycon, members) ->
       [module_sig name tycon members]
     | BModule mod_def ->

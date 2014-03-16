@@ -236,34 +236,62 @@ and type_application pos env x tys =
 and expression env = function
   | EVar (pos, ((Name s) as x), tys) ->
     let ty = type_application pos env x tys in
-    let (TyScheme (tvars, ps, _)) = lookup_scheme pos x env in
+    let (TyScheme (tvars, ps, scheme_body)) = lookup_scheme pos x env in
     let types_assoc = List.combine tvars tys in
+
+    (* To support higher-kinded polymorphism,
+       we need to separately elaborate type applications
+       for variables * -> *
+    *)
+    
+    let (tcs_assoc, tvs_assoc) =
+      let cs = type_constructor_set scheme_body in
+      List.partition (fun (x, _) -> TSet.mem x cs) types_assoc
+    in
+    let (tcs, tycs) = List.split tcs_assoc in
+    let (pcs, ps) =
+      List.partition
+        (fun (ClassPredicate (_, x)) -> List.mem x tcs)
+        ps in
+
+    (* Handles normal typeclasses (Eq, Ord...) *)
     let f term (ClassPredicate (k, a)) =
-      let target = List.assoc a types_assoc in
-      let target = if not (lookup_class pos k env).is_constructor_class 
-        then target
-        (* Another hack for constructor classes... *)
-        else match target with
-          | TyVar (pos, TName x) -> if x.[0] = '\''
-            then TyVar (pos, TName x)
-            else TyApp (pos, TName x, [])
-          | _ -> assert false
-      in
-      (let (TName x) = k in print_string "~> "; print_endline x);
-      let string_of_type ty = ASTio.(XAST.(to_string pprint_ml_type ty)) in
-      let foo_of_type = function
-        | TyVar _ -> "VAR "
-        | TyApp _ -> "APP " in
-      print_string (foo_of_type target);
-      print_string " # ";
-      print_endline (string_of_type target);
+      let target = List.assoc a tvs_assoc in
       match find_parent_dict_proof env (k, target) with
         | None -> assert false (* TODO: error reporting *)
         | Some deriv ->
           let dict = elaborate_parent_proof_into_expr env deriv in
           EApp (pos, term, dict)
     in
-    (List.fold_left f (EVar (pos, x, tys)) ps, ty)
+
+    (* Handles super-duper-awesome classes (Functor, Applicative...) *)
+    let g (ClassPredicate (k, a)) =
+      (* Another hack for constructor classes... *)
+      let target = match List.assoc a tcs_assoc with
+        | TyVar (pos, TName x) -> if x.[0] = '\''
+          then TyVar (pos, TName x)
+          else TyApp (pos, TName x, [])
+        | _ -> assert false
+      in
+
+      match find_parent_dict_proof env (k, target) with
+        | None -> assert false
+        | Some deriv ->
+          elaborate_parent_proof_into_expr_cc env deriv
+    in
+    
+    let evar = if pcs = [] then EVar (pos, x, tys) else
+        let inline_struct = function
+          | TyVar (pos, TName x) | TyApp (pos, TName x, []) when x.[0] = '\'' ->
+            InlineStruct (TyVar (nowhere, chop_head (TName x)))
+          | t -> InlineStruct t
+        in
+        let fctr_args = List.map inline_struct tycs
+                        @ List.map g pcs in
+        EModuleAccess (FunctorApp ("Wrapper_" ^ s, fctr_args),
+                       x)
+    in
+    (List.fold_left f evar ps, ty)
     
 
   | ELambda (pos, ((x, aty) as b), e') ->
@@ -531,11 +559,22 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
       then raise (InvalidOverloading pos)
     end ps;
     check_correct_context pos env (tset_of_list ts) ps;
-    (* CHECK: is this correct? *)
+    (* CHECK: is this enough? *)
 
+    (* Copied from expression/EVar *)
+    let (tcs, tvs) =
+      let cs = type_constructor_set xty in
+      List.partition (fun x -> TSet.mem x cs) ts
+    in
+    let (pcs, ps) = List.partition
+                      (fun (ClassPredicate (_, x)) -> List.mem x tcs)
+                      ps in
+
+    
+    (* CHECK: does this still hold with constructor variables? *)
     let e = eforall pos ts e in
     let env' = introduce_type_parameters env ts xty in
-    let env' = List.fold_left (flip bind_dictionary) env' ps in
+    let env' = List.fold_left (flip bind_dictionary) env' (pcs @ ps) in
     let e, ty = expression env' e in
     check_equal_types pos xty ty;
 
@@ -557,10 +596,19 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
         e
     and ty_elaborated = ntyarrow nowhere (List.map class_predicate_to_type ps) ty
     in
-    (* /!\ The piece of AST we produce should have an elaborated type,
-       but the type scheme we add to the environment is the original one! *)
-    (ValueDef (pos, ts, [], (x, ty_elaborated), EForall (pos, ts, e)),
-     bind_scheme x ts ps ty env)
+    
+    (if tcs = [] then begin
+      (* /!\ The piece of AST we produce should have an elaborated type,
+         but the type scheme we add to the environment is the original one! *)
+      ValueDef (pos, ts, [], (x, ty_elaborated), EForall (pos, ts, e))
+    end else begin
+      VLocalModule (higher_kinded_poly_function env tcs pcs tvs ps
+                       (x, ty_elaborated)
+                       (if tvs = []
+                        then e
+                        else EForall (pos, tvs, e)))
+    end),
+    bind_scheme x ts (pcs @ ps) ty env
 
   end else begin
     if ts <> [] then
@@ -737,6 +785,7 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
       "Instance_" ^ x ^ "_" ^ y in
     BModule (higher_kinded_poly_function env [tvar]
                [ClassPredicate (cname, tvar)]
+               [] [] (* TODO: handle *-kind poly later *)
                (accessor_name, ty) 
                (EModuleAccess (ModulePath [inst_mod_name], accessor_name)))
 
@@ -759,7 +808,7 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
   (accessor_def,
    bind_method_scheme accessor_name [tvar] [ClassPredicate (cname, tvar)] ty env)
 
-and higher_kinded_poly_function env type_con_vars class_preds binding expr =
+and higher_kinded_poly_function env type_con_vars class_con_preds type_vars class_preds binding expr =
   let (Name name, ty) = binding in
   let binding = (Name name, chop_head_rec ty) in
   let type_con_args =
@@ -768,14 +817,14 @@ and higher_kinded_poly_function env type_con_vars class_preds binding expr =
     in
     List.map f type_con_vars
   in
-  let class_args =
+  let class_con_args =
     List.map (fun (ClassPredicate (TName c, tv)) ->
       let param = chop_head
         (lookup_class nowhere (TName c) env).class_parameter in
       let (TName v) = chop_head tv in
       (* functor (Instance_Foo_f : Class_Foo with type 'a m = 'a T_f.t) -> ... *)
       ("Instance_" ^ c ^ "_" ^ v, ("Class_" ^ c, Some (param, "T_" ^ v ^ ".t")))
-    ) class_preds
+    ) class_con_preds
   in
   let type_con_aliases = 
     let f tname =  
@@ -785,12 +834,12 @@ and higher_kinded_poly_function env type_con_vars class_preds binding expr =
     List.map f type_con_vars
   in
   { module_name = "Wrapper_" ^ name;
-    module_functor_args = type_con_args @ class_args;
+    module_functor_args = type_con_args @ class_con_args;
     module_signature = None;
     module_members = [BTypeDefinitions (TypeDefs (nowhere, type_con_aliases));
                       BDefinition (BindValue (
                         nowhere,
-                        [ValueDef (nowhere, [], [], binding, expr)]))];
+                        [ValueDef (nowhere, type_vars, class_preds, binding, expr)]))];
     module_is_recursive = false
   }
                            
@@ -1236,6 +1285,9 @@ and elaborate_parent_proof_into_expr_cc env = function
   | InstLeafFromCtx class_impl ->
     let rec handle_impl acc = function
       | InstInCtx (ClassPredicate (TName cl, TName var)) ->
+        let var = if var.[0] <> '\'' then var else
+            String.sub var 1 (String.length var - 1)
+        in
         ("Instance_" ^ cl ^ "_" ^ var) :: acc
       | InstImplied (TName supcl, TName cl, impl) ->
         let acc = ("Superclass_" ^ supcl ^ "_" ^ cl) :: acc in

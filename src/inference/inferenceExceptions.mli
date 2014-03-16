@@ -116,3 +116,5 @@ exception InvalidClassPredicateInContext of position * tname
 (** [IncompatibleLabel] is raised when a label is used in a
     record expression whose type does not contain it. *)
 exception IncompatibleLabel of position * lname
+
+exception UnreachableConstraint of position * Types.class_predicate

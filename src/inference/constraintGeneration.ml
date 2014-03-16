@@ -586,7 +586,15 @@ let infer_class tenv tc =
 
   let [rq], rtenv = fresh_unnamed_rigid_vars pos tenv [tvar] in
   let tenv' = add_type_variables rtenv tenv in
+  (* only internalize monotypes this way...
+     -> we won't do typechecking for polymorphic members
+  *)
   let intern_method_type (pos, l, TyScheme (_, _, ty)) =
+    (* Not used for constructor classes! *)
+    let ty = if is_cc
+      then TyApp (Positions.undefined_position, TName "unit", [])
+      else ty
+    in
     (l, InternalizeTypes.intern pos tenv' ty)
   in
   let methods = List.map intern_method_type members in
@@ -595,9 +603,12 @@ let infer_class tenv tc =
   (* I think we don't add any constraint to the context,
      only let-binding with principal solved schemes, right? *)
 
-  let method_scheme (pos, LName name, TyScheme (_, _, ty)) =
+  let method_scheme (pos, LName name, TyScheme (ts, ps, ty)) =
+    List.iter (fun (TName x) -> print_string " "; print_string x) ts;
+    print_newline ();
+    print_endline ASTio.(XAST.(to_string pprint_ml_type ty));
     InternalizeTypes.intern_scheme
-      pos tenv name [tvar] [ClassPredicate (k, tvar)] ty
+      pos tenv name (tvar :: ts) (ClassPredicate (k, tvar) :: ps) ty
   in
   let schemes = List.map method_scheme members in
 
@@ -628,8 +639,6 @@ let infer_instance tenv ti =
   
   (* if not is_cc then begin *)
 
-  print_endline "mirage coordinator";
-
   (* the code below also checks that the type constructor
      exists and has the right arity (I think?) *)
   let term = 
@@ -639,8 +648,6 @@ let infer_instance tenv ti =
       (TyApp (pos, g, List.map (fun x -> TyVar (pos, x)) tvars))
   in
 
-  print_endline "liberated liberator";
-  
   (* Since we use this environment in the rest of the code, 
      methods implementations can use this instance recursively.
      TODO: mutual recursion between successive instances
@@ -653,15 +660,20 @@ let infer_instance tenv ti =
   (* TODO: is there more to do, like enriching the context
      with lets, for instance? *)
   (* Refer to ERecordCon *)
-  (* let h = StringMap.add k (t, pos) StringMap.empty in *)
-  (* CLet ([ monoscheme h ], (SName k <? t) pos) *)
 
   let (v, ltys) = fresh_methods_of_class pos tenv k in
 
-  (* As it is now, this is a carbon copy of infer_label *)
   let infer_method (RecordBinding (l, exp), t) =
     try
-      ((List.assoc l ltys) =?= t) pos ^ infer_expr tenv exp t
+      (* for a constructor class, don't check that the inferred type
+         corresponds to the expected type for the method
+         checking polymorphic type schemes right here is too complicated...
+         let the typechecking/elaboration handle that instead
+      *)
+      if is_cc
+      then exists (infer_expr tenv exp)
+      (* This is a carbon copy of infer_label *)
+      else ((List.assoc l ltys) =?= t) pos ^ infer_expr tenv exp t
     with Not_found ->
       (* TODO: add specific exception? or is this enough? *)
       raise (IncompatibleLabel (pos, l))

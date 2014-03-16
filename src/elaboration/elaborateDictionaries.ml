@@ -706,8 +706,11 @@ and class_definition env cdef =
      possible to enforce using the global hash tables
   *)
   let members = cdef.class_members in
-  (* TODO: handle type schemes *)
-  let members = List.map (fun (pos, l, TyScheme(_,_,ty)) -> (pos,l,ty)) members in
+  let members' =
+    List.map
+      (fun (pos, l, TyScheme (_, _, ty)) -> (pos, l, ty))
+      members in
+
 
   let (accessors, env) =
     Misc.list_foldmap (class_member cdef.is_constructor_class cname tvar)
@@ -724,13 +727,13 @@ and class_definition env cdef =
     in
 
     (BModuleSig ("Class_" ^ c, chop_head tvar,
-                 List.map g super, List.map f members)
+                 List.map g super, List.map f members')
      :: accessors,
      env)
 
   end else begin
-    let dict_t = DRecordType ([tvar], dict_super_fields @ members) in
-    let dict_type_def = TypeDef (nowhere, KStar,
+    let dict_t = DRecordType ([tvar], dict_super_fields @ members') in
+    let dict_type_def = TypeDef (nowhere, KStar, 
                                  (class_to_type_name cname),
                                  dict_t) in
     (BTypeDefinitions (TypeDefs (nowhere, [dict_type_def]))
@@ -747,35 +750,51 @@ and superclass_dictionary_field tvar cname sc_name =
   (* for instance, _Ord_Eq *)
   (nowhere, field_name, class_to_dict_type sc_name tvar)
 
-and class_member is_constr_class cname tvar env (pos, l, ty) =
-  let env' = if is_constr_class
-    then bind_type_constructor_variable tvar env
-    else bind_type_variable             tvar env in
-  check_wf_type env' KStar ty;
+and class_member is_constr_class cname tvar env (pos, l, tsch) =
+  let (TyScheme (ts, ps, ty)) = tsch in
 
   begin
-    if not ((is_constr_class && TSet.mem tvar (type_constructor_set ty))
-            || (not is_constr_class && TSet.mem tvar (type_variable_set ty)))
-      (* unreachable constraint / ambiguous type variable *)
-    then raise (InvalidOverloading pos)
+    if not is_constr_class then
+      let env' = bind_type_variable tvar env in
+      check_wf_type env' KStar ty
   end;
 
-  (* generate code for accessor *)
+  (* Note: we don't check for unreachable constraints
+     In explicitly-typed mode, they don't create problems;
+     in implicitly-typed mode, they are already catched
+     by the inferencer *)
+  
   let accessor_name = let (LName str) = l in Name str in
 
+  (* Generate code for accessor *)
   let accessor_def = if is_constr_class then begin
+
+    let (pcs, pvs) = 
+      let f (ClassPredicate (k, _)) =
+        (lookup_class pos k env).is_constructor_class
+      in
+      List.partition f ps
+    in
+
+    let (tcs, tvs) =
+      let cs = List.map (fun (ClassPredicate (_, a)) -> a) pcs in
+      List.partition (fun t -> List.mem t cs) ts
+    in
+
     (* TODO: centralize naming conventions *)
     let inst_mod_name =
       let (TName x) = cname
       and (TName y) = chop_head tvar in
       "Instance_" ^ x ^ "_" ^ y in
-    BModule (higher_kinded_poly_function env [tvar]
-               [ClassPredicate (cname, tvar)]
-               [] [] (* TODO: handle *-kind poly later *)
-               (accessor_name, ty)
+    BModule (higher_kinded_poly_function env (tvar :: tcs)
+               (ClassPredicate (cname, tvar) :: pcs)
+               tvs pvs
+               (accessor_name, ty) 
                (EModuleAccess (ModulePath [inst_mod_name], accessor_name)))
 
   end else begin
+    let (TyScheme ([], [], ty)) = tsch in
+
     let nw = nowhere in
     let dict_type = class_to_dict_type cname tvar in
     let accessor_elaborated_type = ntyarrow nw [dict_type] ty
@@ -792,7 +811,8 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
   end
   in
   (accessor_def,
-   bind_method_scheme accessor_name [tvar] [ClassPredicate (cname, tvar)] ty env)
+   bind_method_scheme accessor_name (tvar::ts)
+     (ClassPredicate (cname, tvar) :: ps) ty env)
 
 and higher_kinded_poly_function env type_con_vars class_con_preds type_vars class_preds binding expr =
   let (Name name, ty) = binding in
@@ -880,10 +900,6 @@ and instance_definition big_env small_env inst_def =
       TyApp (nowhere, class_to_type_name cname, [instance_type]) in
     ntyarrow nowhere constructor_argument_types dict_type
   in
-  (* TODO: actually create dictionary
-     also, what the hell is the name field in ERecordCon supposed to be???
-     => The name field is filled with a non significant name by the parser...
-  *)
 
   (* Add typing context to environment *)
   let big_env   = List.fold_left (flip bind_dictionary) big_env ctx
@@ -916,7 +932,7 @@ and instance_definition big_env small_env inst_def =
   in
   let module OrderedPair =
       struct
-          type t = record_binding * mltype
+          type t = record_binding * mltypescheme
           let compare (m1, t1) (m2, t2) = OrderedMember.compare m1 m2
       end
   in
@@ -949,35 +965,40 @@ and instance_definition big_env small_env inst_def =
     (* Find corresponding class member and add its type,
        instantiated at the instance type, to form the pair (member, type) *)
     (* TODO: how to handle free variables after substitution? *)
-    let subst = Types.substitute [(class_def.class_parameter, instance_type)] in
+    let subst (TyScheme (ts, ps, ty)) =
+      TyScheme (ts, ps, 
+                Types.substitute
+                  [(class_def.class_parameter, instance_type)]
+                  ty)
+    in
     let f (RecordBinding (name, _)) =
       (* TODO: if we got no matching class member, this List.find will raise Not_found *)
       subst =< proj3_3 =< List.find (((=) name) =< proj2_3) (* #Swag *)
       (* TODO: handle type schemes *)
-      $ List.map (fun (pos, l, TyScheme(_,_,ty)) -> (pos,l,ty)) class_def.class_members
+      $ class_def.class_members
       (* $ class_def.class_members *)
     in
     MP.map (id &&& f)  members_set
   in
 
+  if not class_def.is_constructor_class then begin
+
   (* CHECK: check that every class member is defined
      (uniqueness is already enforced) *)
 
   let member_fields =
-    List.map
-      (fun (rec_binding, cl_member_type) ->
+    List.map 
+      (fun (rec_binding, TyScheme ([], [], cl_member_type)) ->
         let compiled_rb_code, computed_type = (* CHECK: names? *)
           record_binding (env_with_free_tvars cl_member_type) rec_binding
         in
         (* Check instance member type against corresponding class
            member type, correctly instantiated *)
         check_equal_types pos computed_type cl_member_type;
-        (compiled_rb_code, computed_type)
+        compiled_rb_code
       )
       $ PSet.elements augmented_members_set
   in
-
-  if not class_def.is_constructor_class then begin
 
   (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
   let dict_record = ERecordCon
@@ -993,7 +1014,7 @@ and instance_definition big_env small_env inst_def =
 
       List.append
         (* Members defined by the current class *)
-        (List.map fst member_fields)
+        member_fields
 
        (* Superclass accessors *)
         (List.map
@@ -1049,11 +1070,18 @@ and instance_definition big_env small_env inst_def =
   end else begin
     (* We're super permissive with constructor classes;
        integrity checks are such a drag... *)
-
+    (* This part was not required for the project anyway. *)
+    
     let member_value_defs =
-      let f (RecordBinding (LName l, expr), ty) =
-        ValueDef (nowhere, [], [], (Name l, chop_head_rec ty), expr) in
-      List.map f member_fields
+      List.map 
+        (fun (RecordBinding (LName l, expr), TyScheme (ts, ps, ty)) ->
+          (* HUGE HACK: do not elaborate/typecheck the expression *)
+          (* Else, we would get unbounded type variables when
+             the type scheme is polymorphic *)
+          assert (ps = []);
+          ValueDef (nowhere, ts, [], (Name l, chop_head_rec ty), expr)
+        )
+        $ PSet.elements augmented_members_set
     in
 
     let (TName cname_str) = cname and (TName index_str) = index

@@ -45,9 +45,9 @@ runTests category isGood testCmd = do
           oko b | b == isGood = "[OK] "
                 | otherwise   = "[KO] "
           flag = case category of
-            Inference   -> " --inference-only" -- don't forget the space!
+            Inference   -> " --elaboration-only" -- don't forget the space!
             Elaboration -> " --elaboration-only"
-            Compilation -> " --compile-with-ocaml --fts"
+            Compilation -> " --compile-with-ocaml"
 
 catName = map toLower . show
 subdir category isGood =

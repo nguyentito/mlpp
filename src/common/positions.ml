@@ -142,7 +142,6 @@ let string_of_pos =
   | Undefined ->
     "Undefined location"
 
-
 let pos_or_undef = function
   | None -> undefined_position
   | Some x -> x

@@ -296,9 +296,20 @@ let type_scheme_of_variable =
       let (ts, ty) = export vs v in
       let cps = List.(flatten (map (export_class_predicate pos) cps)) in
       let cps = canonicalize_class_predicates ts cps in
+
+      (* put the type variables with kind * -> * first *)
       let fvs = InternalizeTypes.variables_of_typ ty in
       let cs = InternalizeTypes.constructors_of_typ ty in
       let ts = List.filter (fun (TName x) -> StringSet.mem x fvs) ts
       and tcs = List.filter (fun (TName x) -> StringSet.mem x cs) ts in
-      TyScheme (tcs @ ts, cps, ty)
+      let ts = tcs @ ts
+      in
+
+      (* Ensure no unreachable constraints *)
+      List.iter (fun cp ->
+        let (ClassPredicate (_, x)) = cp in
+        if not (List.mem x ts)
+        then raise (InferenceExceptions.UnreachableConstraint (pos, cp))) cps;
+
+      TyScheme (ts, cps, ty)
     with Cycle -> raise (RecursiveType pos)

@@ -582,13 +582,13 @@ let infer_class tenv tc =
   (* We suppose that the existence of a class is not visible
      when checking the well-formedness of the types of its members,
      which makes sense since they are monomorphic.
-     TODO: check consistency with other design decisions *)
+     Unless you use constructor classes + polymorphic methods,
+     but then, you enter uncharted territory...
+  *)
 
   let [rq], rtenv = fresh_unnamed_rigid_vars pos tenv [tvar] in
   let tenv' = add_type_variables rtenv tenv in
-  (* only internalize monotypes this way...
-     -> we won't do typechecking for polymorphic members
-  *)
+
   let intern_method_type (pos, l, TyScheme (_, _, ty)) =
     (* Not used for constructor classes! *)
     let ty = if is_cc
@@ -626,7 +626,7 @@ let infer_instance tenv ti =
   let rqs, rtenv = fresh_rigid_vars pos tenv tvars in
   let tvars_assoc = List.combine tvars rqs in
   let tenv' = add_type_variables rtenv tenv in
-  (* TODO: consider replacing this with intern_class_predicates *)
+
   let typing_context = List.map begin fun (ClassPredicate (k', a)) ->
     (* Check the instance's typing context
        + return constraint with internal var *)
@@ -637,21 +637,15 @@ let infer_instance tenv ti =
       | Not_found -> raise (UnboundTypeVariable (pos, a))
   end ti.instance_typing_context in
   
-  (* if not is_cc then begin *)
-
-  (* the code below also checks that the type constructor
-     exists and has the right arity (I think?) *)
+  (* The code below also checks that the type constructor
+     exists and has the right arity *)
   let term = 
-    if Fts.on () && is_cc 
+    if Fts.on () && is_cc
     then as_fun tenv' g (* bypass the kind check *)
     else InternalizeTypes.intern pos tenv'
       (TyApp (pos, g, List.map (fun x -> TyVar (pos, x)) tvars))
   in
 
-  (* Since we use this environment in the rest of the code, 
-     methods implementations can use this instance recursively.
-     TODO: mutual recursion between successive instances
-     CHECK: isn't that actually already supported? *)
   let tenv =
     let info = InstanceInfo (rqs, typing_context, term) in
     (* includes overlapping instance check *)
@@ -689,12 +683,6 @@ let infer_instance tenv ti =
   in
 
   (tenv, fun c -> instance_ok_constraint ^ c)
-
-  (* end else begin *)
-
-  (*   failwith "foo" *)
-
-  (* end  *)
 
 (** [infer e] determines whether the expression [e] is well-typed
     in the empty environment. *)

@@ -28,11 +28,13 @@ let rec chop_head_rec = function
 
 (* Using global mutable state to handle namespace segregation
    between methods and variables *)
+(* This restriction is lifted when using the --fts flag *)
 
 let names_hashtbl : (name, bool) Hashtbl.t = Hashtbl.create 277
 (* true iff overloaded name *)
 
-let register_as_normal_name name =
+let register_as_normal_name =
+  if Fts.on () then ignore else fun name ->
   try
     if Hashtbl.find names_hashtbl name
     then raise (OverloadedSymbolCannotBeBound (nowhere, name))
@@ -41,8 +43,13 @@ let register_as_normal_name name =
 
 let register_as_overloaded_name name =
   try
-    if not (Hashtbl.find names_hashtbl name)
-    then raise (OverloadedSymbolCannotBeBound (nowhere, name))
+    if Hashtbl.find names_hashtbl name
+    then (* 2 overloaded names cannot be the same *)
+      let (Name x) = name in
+      raise (LabelAlreadyTaken (nowhere, LName x))
+    else (* namespace segregation between methods and identifiers *)
+        if not (Fts.on ())
+        then raise (OverloadedSymbolCannotBeBound (nowhere, name))
   with
     | Not_found -> Hashtbl.add names_hashtbl name true
 
@@ -553,16 +560,12 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   if is_value_form e then begin
 
     (* Checks wrt typeclasses *)
-    let ty_vars = TSet.union (type_variable_set xty)
-      (if Fts.on () then type_constructor_set xty else TSet.empty) in
+    let ty_vars = tset_of_list ts in
     List.iter begin fun (ClassPredicate (_, a)) ->
       if not (TSet.mem a ty_vars)
-      (* unreachable constraint!
-         TODO: think about adding a specific exception for that *)
-      then raise (InvalidOverloading pos)
+      then raise (UnboundTypeVariable (pos, a))
     end ps;
-    check_correct_context pos env (tset_of_list ts) ps;
-    (* CHECK: is this enough? *)
+    check_correct_context pos env ty_vars ps;
 
     (* Copied from expression/EVar *)
     let (tcs, tvs) =

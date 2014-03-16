@@ -287,8 +287,6 @@ let solve env pool c =
   (** [given_c] corresponds to the class predicates given
       by the programmer as an annotation. *)
 
-  (* TODO: understand what given_c does *)
-
   let rec solve env pool given_c c =
     let pos = cposition c in
     try
@@ -305,7 +303,6 @@ let solve env pool c =
         rtrue
 
       | CPredicate (pos, k, ty) ->
-        (* TODO: figure out how to integrate given_c *)
         [(k, chop pool ty)]
 
       | CEquation (pos, term1, term2) ->
@@ -314,9 +311,8 @@ let solve env pool c =
         rtrue
 
       | CConjunction cl ->
-        (* TODO: should we modify this?
-           as of now, rconj is List.flatten, which does not
-           eliminate duplicates... *)
+        (* rconj is List.flatten, which does not
+           eliminate duplicates... but that's not a problem *)
         rconj (List.map (solve env pool given_c) cl)
 
       | CLet ([ Scheme (_, [], fqs, [], c, _) ], CTrue _) ->
@@ -405,9 +401,7 @@ let solve env pool c =
 
 
   in (
-    (* TODO: remove this *)
-    let foo = (solve env pool [] c) in
-    print_endline (string_of_int (List.length foo));
+    ignore (solve env pool [] c);
     !answer
   )
 

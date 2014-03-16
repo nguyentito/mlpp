@@ -53,11 +53,11 @@ let register_as_overloaded_name name =
 (* TODO: add position argument to bind_scheme and modify all
    occurrences so that error messages are nicer *)
 
-let bind_method_scheme x ts ps ty env = 
+let bind_method_scheme x ts ps ty env =
   register_as_overloaded_name x;
   bind_scheme x ts ps ty env (* the old bind_scheme *)
 
-let bind_scheme x ts ps ty env = 
+let bind_scheme x ts ps ty env =
   register_as_normal_name x;
   bind_scheme x ts ps ty env
 
@@ -87,7 +87,7 @@ let make_gen_cl_pred (ClassPredicate (cl, var)) =
   cl, TyVar (nowhere, var)
 
 
-type instance_tree = 
+type instance_tree =
 | InstLeafFromDef of instance_definition * instantiation
 | InstLeafFromCtx of class_implication
 | InstBranch of instance_definition * instantiation * instance_tree list
@@ -100,7 +100,7 @@ and class_implication =
 
 
 (* Entry point of the module *)
-let rec program p = 
+let rec program p =
   (if Fts.on () then [BModuleSig ("TypeCon", TName "t", [], [])] else [])
   @ handle_error List.(fun () ->
     flatten (fst (Misc.list_foldmap block ElaborationEnvironment.initial p))
@@ -243,7 +243,7 @@ and expression env = function
        we need to separately elaborate type applications
        for variables * -> *
     *)
-    
+
     let (tcs_assoc, tvs_assoc) =
       let cs = type_constructor_set scheme_body in
       List.partition (fun (x, _) -> TSet.mem x cs) types_assoc
@@ -279,7 +279,7 @@ and expression env = function
         | Some deriv ->
           elaborate_parent_proof_into_expr_cc env deriv
     in
-    
+
     let evar = if pcs = [] then EVar (pos, x, tys) else
         let inline_struct = function
           | TyVar (pos, TName x) | TyApp (pos, TName x, []) when x.[0] = '\'' ->
@@ -292,7 +292,7 @@ and expression env = function
                        x)
     in
     (List.fold_left f evar ps, ty)
-    
+
 
   | ELambda (pos, ((x, aty) as b), e') ->
     check_wf_type env KStar aty;
@@ -550,7 +550,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   if is_value_form e then begin
 
     (* Checks wrt typeclasses *)
-    let ty_vars = TSet.union (type_variable_set xty) 
+    let ty_vars = TSet.union (type_variable_set xty)
       (if Fts.on () then type_constructor_set xty else TSet.empty) in
     List.iter begin fun (ClassPredicate (_, a)) ->
       if not (TSet.mem a ty_vars)
@@ -570,7 +570,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
                       (fun (ClassPredicate (_, x)) -> List.mem x tcs)
                       ps in
 
-    
+
     (* CHECK: does this still hold with constructor variables? *)
     let e = eforall pos ts e in
     let env' = introduce_type_parameters env ts xty in
@@ -596,7 +596,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
         e
     and ty_elaborated = ntyarrow nowhere (List.map class_predicate_to_type ps) ty
     in
-    
+
     (if tcs = [] then begin
       (* /!\ The piece of AST we produce should have an elaborated type,
          but the type scheme we add to the environment is the original one! *)
@@ -663,7 +663,7 @@ and is_value_form = function
    => No.
 *)
 
-(* 
+(*
    TODO: put the naming convention here
 
    => Cf discussion in todo
@@ -691,8 +691,8 @@ and superinstance_var_name (TName supinst) (TName inst) =
 and dictionary_var_name (TName cl_name) (TName tvar_name) =
   Name (uconcat ["dictionary_var"; cl_name; tvar_name])
 
-and class_to_type_name (TName cl_name) = 
-  TName (uconcat ["class_type"; cl_name]) 
+and class_to_type_name (TName cl_name) =
+  TName (uconcat ["class_type"; cl_name])
 
 and instance_to_dict_name (TName cl_name) (TName inst_name) =
   Name (uconcat ["inst_dict"; cl_name; inst_name])
@@ -708,7 +708,7 @@ and tyappvar constructor variable =
   TyApp (nowhere, constructor, [TyVar (nowhere, variable)])
 
 
-and class_definition env cdef = 
+and class_definition env cdef =
   let tvar = cdef.class_parameter
   and cname = cdef.class_name
   and pos = cdef.class_position in
@@ -754,7 +754,7 @@ and class_definition env cdef =
 
   end else begin
     let dict_t = DRecordType ([tvar], dict_super_fields @ members) in
-    let dict_type_def = TypeDef (nowhere, KStar, 
+    let dict_type_def = TypeDef (nowhere, KStar,
                                  (class_to_type_name cname),
                                  dict_t) in
     (BTypeDefinitions (TypeDefs (nowhere, [dict_type_def]))
@@ -796,7 +796,7 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
     BModule (higher_kinded_poly_function env [tvar]
                [ClassPredicate (cname, tvar)]
                [] [] (* TODO: handle *-kind poly later *)
-               (accessor_name, ty) 
+               (accessor_name, ty)
                (EModuleAccess (ModulePath [inst_mod_name], accessor_name)))
 
   end else begin
@@ -806,7 +806,7 @@ and class_member is_constr_class cname tvar env (pos, l, ty) =
     and accessor_expr = ELambda (nw, (Name "z", dict_type),
                                  ERecordAccess (nw, EVar (nw, Name "z", []), l))
     in
-  (* Note: in the elaborated code, => was converted into ->, 
+  (* Note: in the elaborated code, => was converted into ->,
      but the binding added to the environment has the type scheme
      with => *)
     BDefinition (BindValue (nowhere, [
@@ -836,8 +836,8 @@ and higher_kinded_poly_function env type_con_vars class_con_preds type_vars clas
       ("Instance_" ^ c ^ "_" ^ v, ("Class_" ^ c, Some (param, "T_" ^ v ^ ".t")))
     ) class_con_preds
   in
-  let type_con_aliases = 
-    let f tname =  
+  let type_con_aliases =
+    let f tname =
       let (TName x) = chop_head tname in
       ExternalType (nowhere, [TName "'a"], TName x, "'a T_" ^ x ^ ".t")
     in
@@ -852,7 +852,7 @@ and higher_kinded_poly_function env type_con_vars class_con_preds type_vars clas
          nowhere,
          [ValueDef (nowhere, type_vars, class_preds, binding, expr)]))]
   }
-                           
+
 
 
 (***** Elaborate instances *****)
@@ -893,7 +893,7 @@ and instance_definition big_env small_env inst_def =
 
   let ctx = inst_def.instance_typing_context in
   check_correct_context pos small_env tvar_set ctx;
-  let constructor_argument_types = List.map class_predicate_to_type ctx in 
+  let constructor_argument_types = List.map class_predicate_to_type ctx in
 
   (* new_small_env = h' + h (in subject) *)
   let new_small_env = bind_instance inst_def small_env in
@@ -915,7 +915,7 @@ and instance_definition big_env small_env inst_def =
 
   (* TODO: description *)
   let env_with_free_tvars t =
-    TSet.fold bind_type_variable tvar_set 
+    TSet.fold bind_type_variable tvar_set
       $
       match destruct_ntyarrow t with
       | ([], _) ->  small_env
@@ -988,7 +988,7 @@ and instance_definition big_env small_env inst_def =
      (uniqueness is already enforced) *)
 
   let member_fields =
-    List.map 
+    List.map
       (fun (rec_binding, cl_member_type) ->
         let compiled_rb_code, computed_type = (* CHECK: names? *)
           record_binding (env_with_free_tvars cl_member_type) rec_binding
@@ -1020,7 +1020,7 @@ and instance_definition big_env small_env inst_def =
         (List.map fst member_fields)
 
        (* Superclass accessors *)
-        (List.map 
+        (List.map
            (fun spcl ->
              RecordBinding
                (superclass_accessor_type_name spcl cname,
@@ -1075,7 +1075,7 @@ and instance_definition big_env small_env inst_def =
        integrity checks are such a drag... *)
 
     let member_value_defs =
-      let f (RecordBinding (LName l, expr), ty) = 
+      let f (RecordBinding (LName l, expr), ty) =
         ValueDef (nowhere, [], [], (Name l, chop_head_rec ty), expr) in
       List.map f member_fields
     in
@@ -1085,14 +1085,14 @@ and instance_definition big_env small_env inst_def =
 
     (* Superclass accessors *)
     let superclass_modules =
-      List.map 
+      List.map
         (fun spcl ->
           let (TName spcl_str) = spcl in
           let spcl_param =
             chop_head (lookup_class pos spcl big_env).class_parameter
           in
           { module_name = "Superclass_" ^ spcl_str ^ "_" ^ cname_str;
-            module_functor_args = []; 
+            module_functor_args = [];
             module_signature = Some ("Class_" ^ spcl_str,
                                      Some (spcl_param, class_var));
             module_body =
@@ -1100,20 +1100,20 @@ and instance_definition big_env small_env inst_def =
           })
         class_def.superclasses
     in
-    
+
     let typedecl = ExternalType (nowhere,
                                  [TName "'a"],
                                  TName class_var,
                                  "'a " ^ index_str) in
 
     let mod_def = {
-      module_name = "Instance_" ^ cname_str ^ "_" ^ index_str; 
+      module_name = "Instance_" ^ cname_str ^ "_" ^ index_str;
       module_functor_args = [];
       module_signature =
         Some ("Class_" ^ cname_str, Some (TName class_var, index_str));
       module_body = ModuleStruct (
         BTypeDefinitions (TypeDefs (nowhere, [typedecl]))
-        :: List.map (fun x -> BModule x) superclass_modules 
+        :: List.map (fun x -> BModule x) superclass_modules
          @ [BDefinition (BindValue (nowhere, member_value_defs))]
       )
     }
@@ -1150,8 +1150,8 @@ and check_correct_context pos env tvar_set ctx =
 (* The following functions have simple forms thanks to the simplification of the class system *)
 (* TODO: try to add more position information (remove as much nowheres as possible) *)
 and find_parent_dict_proof env target =
-  let unwrap = Misc.unwrap_res_or_die
-  and unwrap_list = Misc.unwrap_res_or_die_list
+  let unwrap = flip Misc.maybe_bind
+  and unwrap_list = flip Misc.maybe_bind_list
   in
 
   let module ClassMap = Map.Make(
@@ -1166,7 +1166,7 @@ and find_parent_dict_proof env target =
     end)
   in
 
-  
+
   (* Map indicating the shortest path to a given superclass *)
   (* This also lists direct superinstances *)
   (* #yolo, should be done once and for all, not in this function *)
@@ -1226,7 +1226,7 @@ and find_parent_dict_proof env target =
       end
 
     | TyApp (_, constr, args) ->
-      let cstr_inst = lookup_instance (cl, constr) env 
+      let cstr_inst = lookup_instance (cl, constr) env
       in
 
       (* TODO : this match is an unwrap *)
@@ -1236,14 +1236,14 @@ and find_parent_dict_proof env target =
         | Some inst -> begin
           let ctx = inst.instance_typing_context in
           match List.length ctx with
-            (* 
+            (*
                Empty context : leaf case
             *)
             | 0 -> Some (InstLeafFromDef (inst, args))
-                
+
             (* Branch case (non-empty context) *)
             | _ ->
-              
+
               let tvars = inst.instance_parameters in
               (* CHECK: can List.combine fail? *)
               let tvars_assoc = List.combine tvars args in
@@ -1254,7 +1254,7 @@ and find_parent_dict_proof env target =
               in
               let new_targets = List.map (fun x -> Some x) dependencies in
 
-              unwrap (fun e -> Some (InstBranch (inst, args, e))) 
+              unwrap (fun e -> Some (InstBranch (inst, args, e)))
                 $ unwrap_list loop new_targets
 
           end
@@ -1263,7 +1263,7 @@ and find_parent_dict_proof env target =
   in
 
   loop target
-	  
+
 
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)
@@ -1319,7 +1319,7 @@ and elaborate_parent_proof_into_expr env =
 (* returns a module_expr *)
 and elaborate_parent_proof_into_expr_cc env = function
   | InstLeafFromDef (inst_def, _) ->
-    let (TName class_name) = inst_def.instance_class_name 
+    let (TName class_name) = inst_def.instance_class_name
     and (TName index     ) = inst_def.instance_index in
     ModulePath ["Instance_" ^ class_name ^ "_" ^ index]
 
@@ -1335,7 +1335,6 @@ and elaborate_parent_proof_into_expr_cc env = function
         handle_impl acc impl
     in
     ModulePath (handle_impl [] class_impl)
-  
+
   (* No "instance ['s] Monad ('s state) ..." *)
   | InstBranch _ -> assert false
-

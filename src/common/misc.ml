@@ -20,6 +20,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+open Operators
+
 (** This module contains miscellaneous utilities. *)
 
 (** [iter] is similar to [List.iter], but does not require [f] to
@@ -382,17 +384,23 @@ let rec iter_unordered_pairs f = function
 
 
 
-let unwrap_res_or_die : 'a 'b. ('a -> 'b option) -> 'a option -> 'b option
-  = fun value_creator -> function
+(**** "Maybe" monad ****)
+let maybe_bind
+  =
+  function
   | Some rec_call_value ->
-    value_creator rec_call_value
-  | None -> None
+    fun value_creator ->
+      value_creator rec_call_value
+  | None ->
+    fun f -> None
 
 
-let unwrap_res_or_die_list : 'a 'b. ('a -> 'b option) -> 'a option list -> 'b list option
-  = fun value_creator l ->
+
+let maybe_bind_list
+  =
+  fun l value_creator ->
     let l' =
-      List.map (unwrap_res_or_die value_creator) l
+      List.map (flip maybe_bind value_creator) l
     in
 
     match List.filter (function | None -> true | Some _ -> false) l' with

@@ -178,13 +178,13 @@ val iter_unordered_pairs : ('a -> 'a -> unit) -> 'a list -> unit
 
 
 
+(**** "Maybe" monad ****)
 (** Returns unwrapped value of the evaluation of an expression if it succeded,
    else returns None **)
 (* This function allows to easily propagate Nones when a recursive value construction
    fails at some point *)
-(* FIXME: better names *)
-val unwrap_res_or_die: ('a -> 'b option) -> 'a option -> 'b option
+val maybe_bind : 'a option -> ('a -> 'b option) -> 'b option
 
 (** Same function as above, but operates on a list ; if a None occur on an element,
     then all the list is rejected and a None is returned instead **)
-val unwrap_res_or_die_list : ('a -> 'b option) -> 'a option list -> 'b list option
+val maybe_bind_list : 'a option list -> ('a -> 'b option) -> 'b list option

@@ -66,12 +66,11 @@ module Make (GAST : AST.GenericS) = struct
       | _ -> true
     ) (ml_type ?generics ty)
 
-  and ml_type_scheme ?generics (TyScheme (vars, classes, ty)) =
+  and ml_type_scheme ?generics not_in_ocaml (TyScheme (vars, classes, ty)) =
     (List.fold_left (fun s cl -> s ^^ (class_predicate cl) ^^ !^ " => ") !^ "" classes)
     ^^
-      (List.fold_left (fun s v -> s ^^ !^ " " ^^ (tname v)) !^ "forall" vars )
-    ^^
-      !^ ". " ^^ ml_type ?generics ty
+      type_parameters not_in_ocaml vars
+    ^^ ml_type ?generics ty
 
   and type_application ?generics ((TName sn) as n) ts =
     group (
@@ -109,6 +108,12 @@ module Make (GAST : AST.GenericS) = struct
   and class_predicate (ClassPredicate (k, t)) =
     group (tname k ^/^ tname t)
 
+  and type_parameters does_not_exist_in_ocaml = function
+    | [] -> empty
+    | ts ->
+      does_not_exist_in_ocaml (fun () ->
+        brackets (separate_map (break 1) tname ts) ^^ break 1
+      )
 
 
 
@@ -164,7 +169,7 @@ module Make (GAST : AST.GenericS) = struct
       group (group (!^ "match" ^/^ expression s ^/^ !^ "with") ^/^ branches bs)
 
     | EForall (_, ts, e) ->
-      group (type_parameters ts ^^ expression e)
+      group (type_parameters does_not_exist_in_ocaml ts ^^ expression e)
 
     | EExists (_, ts, e) ->
       let ts =
@@ -288,7 +293,7 @@ module Make (GAST : AST.GenericS) = struct
     | ExternalValue (_, ts, b, s) ->
       group (
         !^ (if produce_ocaml then "let" else "let external")
-        ^/^ type_parameters ts ^^ binding b
+        ^/^ type_parameters does_not_exist_in_ocaml ts ^^ binding b
         ^/^ !^ "="
         ^/^ (if produce_ocaml then !^ s else string_literal s)
       )
@@ -305,7 +310,7 @@ module Make (GAST : AST.GenericS) = struct
       in
       group (b ^/^ !^ "=") ^//^ group (expression e)
     else
-      group (type_parameters ts
+      group (type_parameters does_not_exist_in_ocaml ts
              ^^ class_predicates c ^^ binding b ^/^ !^ "=")
       ^//^ group (expression e)
 
@@ -326,12 +331,6 @@ module Make (GAST : AST.GenericS) = struct
         ) ^^ break 1
       )
 
-  and type_parameters = function
-    | [] -> empty
-    | ts ->
-      does_not_exist_in_ocaml (fun () ->
-        brackets (separate_map (break 1) tname ts) ^^ break 1
-      )
 
   and expression' ctx e =
     parens_if (match ctx, e with
@@ -394,7 +393,7 @@ module Make (GAST : AST.GenericS) = struct
     !^ l ^/^ !^ ":" ^/^ ml_type ty
 
   and label_type_scheme  (_, LName l, tysc) =
-    !^ l ^/^ !^ ":" ^/^ ml_type_scheme tysc
+    !^ l ^/^ !^ ":" ^/^ ml_type_scheme does_not_exist_in_ocaml tysc
 
   and adt_type_parameters = function
     | [] -> empty
@@ -459,7 +458,7 @@ module Make (GAST : AST.GenericS) = struct
         group (
           group (
             !^ "instance"
-            ^/^ type_parameters id.instance_parameters
+            ^/^ type_parameters does_not_exist_in_ocaml id.instance_parameters
             ^^ superclasses id.instance_typing_context
             ^^ group (tname id.instance_class_name ^/^ ml_type instance_index)
           ) ^/^ nest 2 (

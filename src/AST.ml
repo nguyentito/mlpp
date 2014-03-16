@@ -25,8 +25,7 @@ module Make (P : Types.TypingSyntax) = struct
   and module_definition = { module_name : string;
                             module_functor_args : (string * module_type) list;
                             module_signature : module_type option;
-                            module_members : block list;
-                            module_is_recursive : bool
+                            module_members : block list
                           }
 
   (* No support for functor inside modules... *)

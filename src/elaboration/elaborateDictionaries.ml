@@ -839,8 +839,7 @@ and higher_kinded_poly_function env type_con_vars class_con_preds type_vars clas
     module_members = [BTypeDefinitions (TypeDefs (nowhere, type_con_aliases));
                       BDefinition (BindValue (
                         nowhere,
-                        [ValueDef (nowhere, type_vars, class_preds, binding, expr)]))];
-    module_is_recursive = false
+                        [ValueDef (nowhere, type_vars, class_preds, binding, expr)]))]
   }
                            
 
@@ -975,6 +974,9 @@ and instance_definition big_env small_env inst_def =
   (* CHECK: check that every class member is defined
      (uniqueness is already enforced) *)
 
+
+  if not class_def.is_constructor_class then begin
+
   (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
   let dict_record = ERecordCon
     (
@@ -1009,39 +1011,13 @@ and instance_definition big_env small_env inst_def =
            (fun spcl ->
              RecordBinding
                (superclass_accessor_type_name spcl cname,
-                (* TODO: remove this (debug) *)
                 begin
-                  let rec p = function
-                    | InstLeafFromDef (instdef, _) ->
-                      spconcat
-                        $ List.concat [
-                          ["From env: class"];
-                          List.map
-                            (fun (ClassPredicate (TName cl, TName var)) -> sconcat ["("; cl; var; ") =>"])
-                            instdef.instance_typing_context;
-                          (fun (TName n1) (TName n2) -> [n1; n2])
-                            instdef.instance_class_name instdef.instance_index;
-                        ]
-                    | InstLeafFromCtx impl ->
-                      let rec f = function
-                        | InstInCtx (ClassPredicate (TName cl, _)) -> cl
-                        | InstImplied (TName cl1, _, imp) ->  cl1 ^ " => " ^ (f imp)
-                      in
-                      spconcat ["From ctx:"; f impl]
-                    | InstBranch (inst, _, dep) ->
-                      "Inst" ^ (* TODO *) "[" ^ (String.concat "; "(List.map p dep)) ^ "]"
-                  in
-
                   let deriv = find_parent_dict_proof small_env
                     (spcl, TyApp (nowhere, index,
                                   List.map (fun oh_c'mon -> TyVar (nowhere, oh_c'mon)) tvars))
-
                   in
                   match deriv with
                   | Some deriv ->
-                    (fun (TName n) ->  print_string ("Computed derivation for superclass " ^ n ^ ":\n")) spcl;
-                    print_string $ p deriv;
-                    print_newline ();
                     elaborate_parent_proof_into_expr small_env deriv
                   | None -> assert false
                 end
@@ -1080,6 +1056,8 @@ and instance_definition big_env small_env inst_def =
      dict_constructor)
   in
   (dict_def, new_small_env)
+
+  end 
 
 and check_correct_context pos env tvar_set ctx =
   (* check that the classes are defined and the type variables

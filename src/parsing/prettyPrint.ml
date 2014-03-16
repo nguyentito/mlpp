@@ -236,18 +236,27 @@ module Make (GAST : AST.GenericS) = struct
          to match O'Caml's pattern language. *)
       assert false
 
+  and all_local_modules = List.for_all
+    (function VLocalModule _ -> true | _ -> false)
+
   and bind_values is_toplevel = function
     | BindValue (_, []) | BindRecValue (_, []) ->
       empty
 
-    (* Handle special cases of interest *)
+    (* Handle special cases of interest for modules *)
     | BindValue (_, [VLocalModule mod_def]) ->
       (if is_toplevel then empty else !^ "let")
-      ^/^ module_struct ({ mod_def with module_is_recursive = false })
+      ^/^ module_struct mod_def
 
-    | BindRecValue (_, [VLocalModule mod_def]) ->
+    | BindValue (_, vs) when all_local_modules vs ->
       assert is_toplevel;
-      module_struct ({ mod_def with module_is_recursive = true })
+      failwith "TODO"
+
+    | BindRecValue (_, vs) when all_local_modules vs ->
+      assert is_toplevel;
+      failwith "TODO"
+
+    (* End of modules *)
 
     | BindValue (_, vs) ->
       group (
@@ -459,11 +468,11 @@ module Make (GAST : AST.GenericS) = struct
   and sig_val (Name l, ty) =
     !^ "val" ^/^ !^ l ^/^ !^ ":" ^/^ ml_type ty
 
-  and module_struct mod_def =
+  and module_struct ?(recursive = false) mod_def =
     if not produce_ocaml then empty else begin
       group (
         group (
-          !^ (if mod_def.module_is_recursive then "module rec" else "module")
+          !^ (if recursive then "module rec" else "module")
           ^/^ !^ (mod_def.module_name)
           ^/^ module_type_annot mod_def.module_signature
           ^/^ !^ "="

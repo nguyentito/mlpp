@@ -1,3 +1,5 @@
+(* Compile me with --fts ! *)
+
 type 'a maybe = Nothing | Just of 'a
 type 'a list = Cons of 'a * 'a list | Nil
 

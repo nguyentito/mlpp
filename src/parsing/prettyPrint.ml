@@ -250,11 +250,13 @@ module Make (GAST : AST.GenericS) = struct
 
     | BindValue (_, vs) when all_local_modules vs ->
       assert is_toplevel;
-      failwith "TODO"
+      let f (VLocalModule m) = module_struct m in
+      separate_map (break 1) f vs
 
     | BindRecValue (_, vs) when all_local_modules vs ->
       assert is_toplevel;
-      failwith "TODO"
+      let f (VLocalModule m) = m in
+      module_structs_rec (List.map f vs)
 
     (* End of modules *)
 
@@ -468,11 +470,11 @@ module Make (GAST : AST.GenericS) = struct
   and sig_val (Name l, ty) =
     !^ "val" ^/^ !^ l ^/^ !^ ":" ^/^ ml_type ty
 
-  and module_struct ?(recursive = false) mod_def =
+  and module_struct mod_def =
     if not produce_ocaml then empty else begin
       group (
         group (
-          !^ (if recursive then "module rec" else "module")
+          !^ "module"
           ^/^ !^ (mod_def.module_name)
           ^/^ module_type_annot mod_def.module_signature
           ^/^ !^ "="
@@ -484,6 +486,23 @@ module Make (GAST : AST.GenericS) = struct
       )
     end
       
+  and module_structs_rec mod_defs =
+    if not produce_ocaml then empty else begin
+      let f mod_def = 
+        group (
+          !^ (mod_def.module_name)
+          ^/^ module_type_annot mod_def.module_signature
+          ^/^ !^ "="
+          ^/^ functor_args mod_def.module_functor_args
+          ^/^ !^ "struct"
+          ^/^ nest 2 (program mod_def.module_members)
+          ^/^ !^ "end"
+        ) 
+      in
+      !^ "module rec"
+      ^/^ separate_map (break 1 ^^ !^ "and" ^^ break 1) f mod_defs
+    end
+
   and module_type_annot = function
     | None -> empty
     | Some (name, with_type) -> !^ ":" ^/^ !^ name ^/^ begin match with_type with

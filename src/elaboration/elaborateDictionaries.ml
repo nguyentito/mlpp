@@ -1057,7 +1057,13 @@ and instance_definition big_env small_env inst_def =
   in
   (dict_def, new_small_env)
 
-  end 
+  end else begin
+    (* We're super permissive with constructor classes;
+       integrity checks are such a drag... *)
+
+    
+
+  end
 
 and check_correct_context pos env tvar_set ctx =
   (* check that the classes are defined and the type variables

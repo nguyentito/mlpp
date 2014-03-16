@@ -389,7 +389,6 @@ let unwrap_res_or_die : 'a 'b. ('a -> 'b option) -> 'a option -> 'b option
   | None -> None
 
 
-(*  FIXME: this seems a bit too heavy... Is it a better way to do it? *)
 let unwrap_res_or_die_list : 'a 'b. ('a -> 'b option) -> 'a option list -> 'b list option
   = fun value_creator l ->
     let l' =

@@ -100,7 +100,7 @@ class_members          = record_type(mltypescheme)
 
   (* constructor class => mark all occurrences of the constructor
      variable x with a prefix ' to distinguish it from
-     a defined datatype 
+     a defined datatype
      (it's hackish, but it mostly works)
   *)
   let prefix_quote (TName x) = TName (String.concat "" ["'"; x]) in
@@ -656,7 +656,6 @@ record_type(typerule): LBRACE b=separated_list(SEMICOLON, label_type_declaration
 label_type_declaration(typerule): l=lname COLON t=typerule
 {
   let pos = lex_join $startpos $endpos in
-  (* FIXME: temporary *)
   (pos, l, t)
 }
 

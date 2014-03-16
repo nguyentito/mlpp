@@ -17,7 +17,7 @@ module Make (P : Types.TypingSyntax) = struct
     (* special-purpose hack: module signature with a single type constructor *)
     (* module type X = sig type 'a t module A : T val x : foo end *)
     (* TODO: the list should be a set, like all those below... *)
-    | BModuleSig of string * tname * (string * module_type) list * (name * mltype) list 
+    | BModuleSig of string * tname * (string * module_type) list * (name * mltype) list
     | BModule of module_definition
 
   (* Foo with type 'a <tname> = 'a <string> *)
@@ -37,7 +37,7 @@ module Make (P : Types.TypingSyntax) = struct
   (* No support for functor inside modules... *)
   and module_expr =
     | FunctorApp of string * module_expr list
-    | ModulePath of string list 
+    | ModulePath of string list
     (* support a special case: struct type 'a t = 'a foobar end *)
     | InlineStruct of mltype
 
@@ -48,17 +48,18 @@ module Make (P : Types.TypingSyntax) = struct
     class_parameter : tname;
     superclasses    : tname list;
     class_name      : tname;
-    class_members   : (position * lname * mltypescheme) list; (* TODO: this should be a set, or a map
-                                                           Problem : declaration order (should be preserved) *)
+    class_members   : (position * lname * mltypescheme) list;
+  (* TODO: this should be a set, or a map
+     Problem : the declaration order should be preserved... *)
   }
 
   and instance_definition = {
     instance_position       : position;
-    instance_parameters     : type_var_name list; (* FIXME: use a polymorphic variant, bitch! *)
-    instance_typing_context : class_predicate list; (* TODO: rename *)
+    instance_parameters     : type_var_name list;
+    instance_typing_context : class_predicate list;
     instance_class_name     : type_class_name;
     instance_index          : type_constr_name;
-    instance_members        : record_binding list; (* TODO: this should be a set, or even a map *)
+    instance_members        : record_binding list; (* TODO: this should be a set, or even a map (see above) *)
   }
 
   and value_binding =
@@ -91,7 +92,7 @@ module Make (P : Types.TypingSyntax) = struct
 
     (** Records. *)
     | ERecordAccess of position * expression * lname
-    | ERecordCon of position * name * instantiation * record_binding list  (* TODO: this should be a set *)
+    | ERecordCon of position * name * instantiation * record_binding list
 
     (* Access a member of a module;
        this actually means (let module X = (...) in X.(...),

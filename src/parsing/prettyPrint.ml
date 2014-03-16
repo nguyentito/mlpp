@@ -70,8 +70,7 @@ module Make (GAST : AST.GenericS) = struct
     (List.fold_left (fun s cl -> s ^^ (class_predicate cl) ^^ !^ " => ") !^ "" classes)
     ^^
       type_parameters not_in_ocaml vars
-    ^^
-      !^ ". " ^^ ml_type ?generics ty
+    ^^ ml_type ?generics ty
 
   and type_application ?generics ((TName sn) as n) ts =
     group (

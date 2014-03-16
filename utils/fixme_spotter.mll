@@ -106,6 +106,7 @@ rule spot = parse
     let c = open_in !cur_file in
     spot (Lexing.from_channel c);
     spotted := 0;
+    hashtags := 0;
     do_print := true;
     close_in c;
   done

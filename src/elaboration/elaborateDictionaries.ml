@@ -669,18 +669,9 @@ and is_value_form = function
    => No.
 *)
 
-(*
-   TODO: put the naming convention here
 
-   => Cf discussion in todo
-
-*)
-
-
-(* TODO: find better names for these functions *)
 and class_to_dict_type k a = tyappvar (class_to_type_name k) a
 and class_predicate_to_type (ClassPredicate (k, a)) = class_to_dict_type k a
-(* and class_to_dict_var_name (TName str) = Name ("_" ^ str) *)
 
 
 and tyappvar constructor variable =
@@ -886,8 +877,6 @@ and instance_definition big_env small_env inst_def =
   let class_def = lookup_class pos cname small_env
   in
 
-  (* TODO: maybe check that the same type variable does not occur twice??
-     Is this enforced in the rest of the code? *)
   let tvar_set = tset_of_list tvars in
 
   let ctx = inst_def.instance_typing_context in
@@ -908,7 +897,7 @@ and instance_definition big_env small_env inst_def =
   let big_env   = List.fold_left (flip bind_dictionary) big_env ctx
   and small_env = List.fold_left (flip bind_dictionary) small_env ctx in
 
-  (* TODO: description *)
+  (* This returns the right env depending on the context *)
   let env_with_free_tvars t =
     TSet.fold bind_type_variable tvar_set
       $
@@ -978,7 +967,6 @@ and instance_definition big_env small_env inst_def =
         subst =< proj3_3 =< List.find (((=) name) =< proj2_3)
         (* TODO: handle type schemes *)
         $ class_def.class_members
-      (* $ class_def.class_members *)
       with
       | Not_found ->
         raise (UnboundLabel (pos, name))
@@ -1005,16 +993,14 @@ and instance_definition big_env small_env inst_def =
       $ PSet.elements augmented_members_set
   in
 
-  (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
   let dict_record = ERecordCon
     (
       nowhere,
-      Name "WTFITS??",
+      Name "SomeName",
       (* Instantiation of the record type *)
       instantiation nowhere
         $ TypeApplication (List.map (fun x -> TyVar (nowhere, x)) tvars)
-        (* CHECK: If G is nullary, then this is the empty list,
-           so morally it should work (bitch) *)
+        (* If G is nullary, then this is the empty list, so it should work *)
         ,
 
       List.append
@@ -1154,7 +1140,6 @@ and check_correct_context pos env tvar_set ctx =
 
 
 (** Finding parent dictionaries **)
-(* TODO: following commentaries should go to the .mli *)
 (* Following function finds a proof derivation for the target class in the given context *)
 (* The following functions have simple forms thanks to the simplification of the class system *)
 and find_parent_dict_proof env target =

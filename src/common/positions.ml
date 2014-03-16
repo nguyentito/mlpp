@@ -29,9 +29,8 @@ type position_interval =
       end_p   : Lexing.position
     }
 
-(* FIXME: maybe use a polymorphic variant instead *)
+(* Idea: maybe use a polymorphic variant instead *)
 type position =
-  (* FIXME: better names *)
   | Location of Lexing.position
   | Interval of position_interval
   | Undefined
@@ -70,7 +69,7 @@ let merge =
   in
   let rec f min max = function
     | [] ->
-      if min = max (* TODO: check correctness *)
+      if min = max
       then Location min
       else Interval { start_p = min; end_p = max }
 

@@ -115,7 +115,9 @@ class_members          = record_type(mltypescheme)
     if is_cc then prefix_quote class_parameter else class_parameter in
 
   let class_members = if not is_cc then class_members else begin
-    let f (pos, lname, ty) = (pos, lname, recursive_prefix_quote ty) in
+    let f (pos, lname, TyScheme (ts, ps, ty)) =
+      (pos, lname, TyScheme (ts, ps, recursive_prefix_quote ty))
+    in
     List.map f class_members
   end in
 

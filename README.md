@@ -2,16 +2,42 @@ ML++ (aka ML with classes)
 ==========================
 
 This is a project for a course in functional programming and type
-systems (MPRI 2-4).
+systems (MPRI 2-4). Its goal is to add type classes to a ML-like
+language using a source-to-source translation, and to support
+type inference for typeclasses.
 
-TODO: fill README later.
+
+Awesome feature: constructor classes!
+-------------------------------------
+
+The language for this project is supposed to be called _Mini-Haskell_;
+but it doesn't even have Monads, Haskell's most famous feature!
+In order to support them, we have added (limited) support for
+_constructor classes_, which includes polymorphism with type variables
+of kind * -> * and the ability for methods to be polymorphic in more 
+type variables than just the parameter of their class.
+
+To make this fit into the pre-existing framework, we had to resort
+to piling up ugly hacks on top of the code base. For example, if you
+try to put something complicated into an instance declaration for
+a constructor class, it will break; you are advised to define your methods
+separately and then just put an equality in the instance definition.
+
+To enable this feature, use the `--fts` flag, which also lifts a
+restriction on namespaces in the spec. A sample file is given in
+`test/functor-applicative.mlt`. Test using
+
+    ./src/front.native test/functor-applicative.mlt --fts --compile-with-ocaml
+
+You will be able to witness the usage of ML modules and functors
+to translate constructor classes.
+
 
 Requirements
 ------------
 
 * OCaml >= 4.00
 * The Menhir parser generator
-* For now, nothing else. Should we add a dependency on ExtLib?
 
 Compilation
 -----------

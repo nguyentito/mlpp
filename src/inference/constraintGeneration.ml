@@ -604,9 +604,6 @@ let infer_class tenv tc =
      only let-binding with principal solved schemes, right? *)
 
   let method_scheme (pos, LName name, TyScheme (ts, ps, ty)) =
-    List.iter (fun (TName x) -> print_string " "; print_string x) ts;
-    print_newline ();
-    print_endline ASTio.(XAST.(to_string pprint_ml_type ty));
     InternalizeTypes.intern_scheme
       pos tenv name (tvar :: ts) (ClassPredicate (k, tvar) :: ps) ty
   in

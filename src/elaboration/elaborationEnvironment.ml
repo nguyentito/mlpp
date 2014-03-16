@@ -21,7 +21,7 @@ module DictSet = Set.Make (struct
     type t = class_predicate
     let compare = compare
 end)
-  
+
 (*
 type t = {
    values       : (tnames * binding) list;
@@ -66,7 +66,7 @@ let lookup_scheme pos x env =
   try NMap.find x env.values
   with Not_found -> raise (UnboundIdentifier (pos, x))
 
-let bind_scheme x ts ps ty env = 
+let bind_scheme x ts ps ty env =
   { env with values = NMap.add x (TyScheme (ts, ps, ty)) env.values }
 
 let bind_simple x ty env =
@@ -142,7 +142,7 @@ let initial =
     (TName "unit", KStar)
   ]
 
-let bind_dictionary p env = 
+let bind_dictionary p env =
   { env with dictionaries = DictSet.add p env.dictionaries }
 
 let lookup_dictionary p env =
@@ -162,23 +162,11 @@ let bind_instance inst env =
   { env with instances = InstanceMap.add inst_key inst env.instances }
 
 
-(* let lookup_instance pos inst_key env = *)
-(*   (\* In this simplified system, as there is no overlapping, there is *)
-(*      at most one instance "proof" derivation, and thus, every instance *)
-(*      involved in one derivation is (necessarily) mandatory *\) *)
-(*   try *)
-(*     TMap.find inst_key env.instances *)
-      
-(*   (\* CHECK: i'm not sure this is the right exception *\) *)
-(*   with Not_found -> raise (CannotElaborateDictionnary (pos, assert false (\* TODO *\))) *)
-
 let lookup_instance inst_key env =
   (* In this simplified system, as there is no overlapping, there is
      at most one instance "proof" derivation, and thus, every instance
      involved in one derivation is (necessarily) mandatory *)
   try
     Some (InstanceMap.find inst_key env.instances)
-      
-  (* CHECK: i'm not sure this is the right exception *)
-  with Not_found -> None
 
+  with Not_found -> None

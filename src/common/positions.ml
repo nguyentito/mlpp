@@ -29,9 +29,8 @@ type position_interval =
       end_p   : Lexing.position
     }
 
-(* FIXME: maybe use a polymorphic variant instead *)
+(* Idea: maybe use a polymorphic variant instead *)
 type position =
-  (* FIXME: better names *)
   | Location of Lexing.position
   | Interval of position_interval
   | Undefined
@@ -70,7 +69,7 @@ let merge =
   in
   let rec f min max = function
     | [] ->
-      if min = max (* TODO: check correctness *)
+      if min = max
       then Location min
       else Interval { start_p = min; end_p = max }
 
@@ -118,17 +117,30 @@ let string_of_lex_pos p =
   let c = p.pos_cnum - p.pos_bol in
   (string_of_int p.pos_lnum)^":"^(string_of_int c)
 
-let string_of_pos = function
+let string_of_pos =
+  let get_file p =
+    if p.pos_fname <> ""
+    then "File \"" ^ p.pos_fname ^ "\", "
+    else ""
+  and get_line p =
+    "line " ^ (string_of_int p.pos_lnum)
+  in
+
+  function
   | Interval p ->
-    (if p.start_p.pos_fname <> "" then "File \""^p.start_p.pos_fname^"\", "
-     else "")
-    ^"line "^(string_of_int p.start_p.pos_lnum)
-    ^", characters "^ string_of_characters (characters p.start_p p.end_p)
-
-  | _ -> ""
-
-(* TODO: other cases *)
-
+    get_file p.start_p
+    ^
+      get_line p.start_p
+    ^
+      ", characters " ^ string_of_characters (characters p.start_p p.end_p)
+  | Location p ->
+    get_file p
+    ^
+      get_line p
+    ^
+      ", character " ^ string_of_int (column p)
+  | Undefined ->
+    "Undefined location"
 
 let pos_or_undef = function
   | None -> undefined_position

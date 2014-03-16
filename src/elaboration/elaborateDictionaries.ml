@@ -587,7 +587,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
               (
                 nowhere,
                 ExplicitTyping.binding
-                  Lexing.dummy_pos
+                  nowhere
                   $ dictionary_var_name cl tvar
                   $ Some (class_predicate_to_type cl_pred),
                 next
@@ -730,6 +730,9 @@ and class_definition env cdef =
      possible to enforce using the global hash tables
   *)
   let members = cdef.class_members in
+  (* TODO: handle type schemes *)
+  let members = List.map (fun (pos, l, TyScheme(_,_,ty)) -> (pos,l,ty)) members in
+
   let (accessors, env) =
     Misc.list_foldmap (class_member cdef.is_constructor_class cname tvar)
                       env members in
@@ -974,7 +977,9 @@ and instance_definition big_env small_env inst_def =
     let f (RecordBinding (name, _)) =
       (* TODO: if we got no matching class member, this List.find will raise Not_found *)
       subst =< proj3_3 =< List.find (((=) name) =< proj2_3) (* #Swag *)
-      $ class_def.class_members
+      (* TODO: handle type schemes *)
+      $ List.map (fun (pos, l, TyScheme(_,_,ty)) -> (pos,l,ty)) class_def.class_members
+      (* $ class_def.class_members *)
     in
     MP.map (id &&& f)  members_set
   in
@@ -1004,7 +1009,7 @@ and instance_definition big_env small_env inst_def =
       nowhere,
       Name "WTFITS??",
       (* Instantiation of the record type *)
-      instantiation Lexing.dummy_pos (* FIXME: wtf?!  *)
+      instantiation nowhere
         $ TypeApplication (List.map (fun x -> TyVar (nowhere, x)) tvars)
         (* CHECK: If G is nullary, then this is the empty list,
            so morally it should work (bitch) *)
@@ -1049,7 +1054,7 @@ and instance_definition big_env small_env inst_def =
             (
               nowhere,
               ExplicitTyping.binding
-                Lexing.dummy_pos
+                nowhere
                 $ dictionary_var_name cl var
                 $ Some (class_predicate_to_type cl_pred),
               next

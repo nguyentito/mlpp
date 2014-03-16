@@ -586,7 +586,7 @@ let infer_class tenv tc =
 
   let [rq], rtenv = fresh_unnamed_rigid_vars pos tenv [tvar] in
   let tenv' = add_type_variables rtenv tenv in
-  let intern_method_type (pos, l, ty) =
+  let intern_method_type (pos, l, TyScheme (_, _, ty)) =
     (l, InternalizeTypes.intern pos tenv' ty)
   in
   let methods = List.map intern_method_type members in
@@ -595,7 +595,7 @@ let infer_class tenv tc =
   (* I think we don't add any constraint to the context,
      only let-binding with principal solved schemes, right? *)
 
-  let method_scheme (pos, LName name, ty) =
+  let method_scheme (pos, LName name, TyScheme (_, _, ty)) =
     InternalizeTypes.intern_scheme
       pos tenv name [tvar] [ClassPredicate (k, tvar)] ty
   in

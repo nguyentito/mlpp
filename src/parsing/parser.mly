@@ -5,10 +5,15 @@
   open GAST
   open Types
   open Positions
+  open Operators
 
   let fresh_record_name =
     let r = ref 0 in
     fun () -> incr r; Name ("_record_" ^ string_of_int !r)
+
+
+  let instantiation = instantiation =< pos_from_single_lex
+  let binding = binding =< pos_from_single_lex
 
 %}
 
@@ -78,7 +83,7 @@ class_definition:
 CLASS
 superclasses           = superclasses
 class_predicate        = class_predicate_declaration
-class_members          = record_type
+class_members          = record_type(mltypescheme)
 {
   let class_position = lex_join $startpos $endpos in
   let ClassPredicate (class_name, class_parameter) = class_predicate in
@@ -213,7 +218,7 @@ adt=algebraic_datatype_definition
     let datacon (pos, k, tys) = (pos, k, ts, ntyarrow pos tys rty) in
     DAlgebraic (List.map datacon adt)
 }
-| rdt=record_type
+| rdt=record_type(mltype)
 {
   fun ts _ -> DRecordType (ts, rdt)
 }
@@ -572,6 +577,16 @@ binding: x=name
   binding $startpos x (Some ty)
 }
 
+
+(* TODO: implement this
+   It seems it is not already done somewhere else
+*)
+mltypescheme: t=mltype
+{
+  TyScheme ([], [], t)
+}
+
+
 mltype: x=tvname
 {
   TyVar (lex_join $startpos $endpos, x)
@@ -631,14 +646,15 @@ mldatatype: TINT
   TyApp (pos, t, ty :: tys)
 }
 
-record_type: LBRACE b=separated_list(SEMICOLON, label_type_declaration) RBRACE
+record_type(typerule): LBRACE b=separated_list(SEMICOLON, label_type_declaration(typerule)) RBRACE
 {
   b
 }
 
-label_type_declaration: l=lname COLON t=mltype
+label_type_declaration(typerule): l=lname COLON t=typerule
 {
   let pos = lex_join $startpos $endpos in
+  (* FIXME: temporary *)
   (pos, l, t)
 }
 

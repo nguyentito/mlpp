@@ -75,7 +75,9 @@ type data_constructor = int * variable list * crterm
 
 (* superclasses, parameter, members, is_constructor_class *)
 type class_info =
+    (* ClassInfo of tname list * variable * (lname * variable list * crterm) list * bool *)
     ClassInfo of tname list * variable * (lname * crterm) list * bool
+
 type instance_info =  
     InstanceInfo of variable list * Constraint.tclass_constraint * crterm
 

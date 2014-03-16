@@ -50,7 +50,7 @@ module type TypingSyntax = sig
   type binding
 
   val binding
-    : Lexing.position -> name -> mltype option -> binding
+    : Positions.position -> name -> mltype option -> binding
 
   val destruct_binding
     : binding -> name * mltype option
@@ -58,7 +58,7 @@ module type TypingSyntax = sig
   type instantiation
 
   val instantiation
-    : Lexing.position -> instantiation_kind -> instantiation
+    : Positions.position -> instantiation_kind -> instantiation
 
   val destruct_instantiation_as_type_applications
     : instantiation -> mltype list option
@@ -79,7 +79,7 @@ struct
 
   let instantiation pos = function
     | TypeApplication _ ->
-      Errors.fatal [pos] "No type application while being implicit."
+      Errors.fatal' pos "No type application while being implicit."
     | LeftImplicit ->
       None
 
@@ -94,7 +94,7 @@ struct
   type binding = Name.name * mltype
 
   let binding pos x = function
-    | None -> Errors.fatal [pos] "An explicit type annotation is required."
+    | None -> Errors.fatal' pos "An explicit type annotation is required."
     | Some ty -> (x, ty)
 
   let destruct_binding (x, ty) = (x, Some ty)
@@ -103,7 +103,7 @@ struct
 
   let instantiation pos = function
     | LeftImplicit ->
-      Errors.fatal [pos] "An explicit type application is required."
+      Errors.fatal' pos "An explicit type application is required."
     | TypeApplication i -> i
 
   let destruct_instantiation_as_type_applications i = Some i

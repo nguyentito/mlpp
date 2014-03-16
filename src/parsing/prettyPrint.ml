@@ -66,6 +66,13 @@ module Make (GAST : AST.GenericS) = struct
       | _ -> true
     ) (ml_type ?generics ty)
 
+  and ml_type_scheme ?generics (TyScheme (vars, classes, ty)) =
+    (List.fold_left (fun s cl -> s ^^ (class_predicate cl) ^^ !^ " => ") !^ "" classes)
+    ^^
+      (List.fold_left (fun s v -> s ^^ !^ " " ^^ (tname v)) !^ "forall" vars )
+    ^^
+      !^ ". " ^^ ml_type ?generics ty
+
   and type_application ?generics ((TName sn) as n) ts =
     group (
       match as_symbol n with
@@ -98,6 +105,12 @@ module Make (GAST : AST.GenericS) = struct
               group (parens (separate_map comma (ml_type ?generics) xs))
               ^/^ !^ sn
     )
+
+  and class_predicate (ClassPredicate (k, t)) =
+    group (tname k ^/^ tname t)
+
+
+
 
   let printer produce_ocaml =
 
@@ -313,9 +326,6 @@ module Make (GAST : AST.GenericS) = struct
         ) ^^ break 1
       )
 
-  and class_predicate (ClassPredicate (k, t)) =
-    group (tname k ^/^ tname t)
-
   and type_parameters = function
     | [] -> empty
     | ts ->
@@ -373,11 +383,18 @@ module Make (GAST : AST.GenericS) = struct
     | DRecordType (_, r) ->
       braces (row r)
 
+  (* Unable to make following 2 rules parametric... (i.e. to avoid duplicating them) *)
   and row r =
     separate_map (!^ ";" ^^ break 1) label_type r
 
+  and row_scheme r =
+    separate_map (!^ ";" ^^ break 1) label_type_scheme r
+
   and label_type (_, LName l, ty) =
     !^ l ^/^ !^ ":" ^/^ ml_type ty
+
+  and label_type_scheme  (_, LName l, tysc) =
+    !^ l ^/^ !^ ":" ^/^ ml_type_scheme tysc
 
   and adt_type_parameters = function
     | [] -> empty
@@ -418,7 +435,7 @@ module Make (GAST : AST.GenericS) = struct
           ^/^ superclasses cs
           ^^ class_predicate (ClassPredicate (cd.class_name,cd.class_parameter))
         ) ^/^ nest 2 (!^ "{"
-                      ^/^ group (row cd.class_members)) ^/^ !^ "}"
+                      ^/^ group (row_scheme cd.class_members)) ^/^ !^ "}"
       )
     )
 

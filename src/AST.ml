@@ -48,7 +48,7 @@ module Make (P : Types.TypingSyntax) = struct
     class_parameter : tname;
     superclasses    : tname list;
     class_name      : tname;
-    class_members   : (position * lname * mltype) list; (* TODO: this should be a set, or a map 
+    class_members   : (position * lname * mltypescheme) list; (* TODO: this should be a set, or a map
                                                            Problem : declaration order (should be preserved) *)
   }
 

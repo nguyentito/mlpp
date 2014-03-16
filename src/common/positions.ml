@@ -118,14 +118,30 @@ let string_of_lex_pos p =
   let c = p.pos_cnum - p.pos_bol in
   (string_of_int p.pos_lnum)^":"^(string_of_int c)
 
-let string_of_pos = function
-  | Interval p ->
-    (if p.start_p.pos_fname <> "" then "File \""^p.start_p.pos_fname^"\", "
-     else "")
-    ^"line "^(string_of_int p.start_p.pos_lnum)
-    ^", characters "^ string_of_characters (characters p.start_p p.end_p)
+let string_of_pos =
+  let get_file p =
+    if p.pos_fname <> ""
+    then "File \"" ^ p.pos_fname ^ "\", "
+    else ""
+  and get_line p =
+    "line " ^ (string_of_int p.pos_lnum)
+  in
 
-(* TODO: other cases *)
+  function
+  | Interval p ->
+    get_file p.start_p
+    ^
+      get_line p.start_p
+    ^
+      ", characters " ^ string_of_characters (characters p.start_p p.end_p)
+  | Location p ->
+    get_file p
+    ^
+      get_line p
+    ^
+      ", character " ^ string_of_int (column p)
+  | Undefined ->
+    "Undefined location"
 
 
 let pos_or_undef = function

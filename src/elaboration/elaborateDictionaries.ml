@@ -560,16 +560,12 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   if is_value_form e then begin
 
     (* Checks wrt typeclasses *)
-    let ty_vars = TSet.union (type_variable_set xty)
-      (if Fts.on () then type_constructor_set xty else TSet.empty) in
+    let ty_vars = tset_of_list ts in
     List.iter begin fun (ClassPredicate (_, a)) ->
       if not (TSet.mem a ty_vars)
-      (* unreachable constraint!
-         TODO: think about adding a specific exception for that *)
-      then raise (InvalidOverloading pos)
+      then raise (UnboundTypeVariable (pos, a))
     end ps;
-    check_correct_context pos env (tset_of_list ts) ps;
-    (* CHECK: is this enough? *)
+    check_correct_context pos env ty_vars ps;
 
     (* Copied from expression/EVar *)
     let (tcs, tvs) =

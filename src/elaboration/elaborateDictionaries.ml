@@ -669,18 +669,9 @@ and is_value_form = function
    => No.
 *)
 
-(*
-   TODO: put the naming convention here
 
-   => Cf discussion in todo
-
-*)
-
-
-(* TODO: find better names for these functions *)
 and class_to_dict_type k a = tyappvar (class_to_type_name k) a
 and class_predicate_to_type (ClassPredicate (k, a)) = class_to_dict_type k a
-(* and class_to_dict_var_name (TName str) = Name ("_" ^ str) *)
 
 
 and tyappvar constructor variable =
@@ -736,7 +727,7 @@ and class_definition env cdef =
 
   end else begin
     let dict_t = DRecordType ([tvar], dict_super_fields @ members') in
-    let dict_type_def = TypeDef (nowhere, KStar, 
+    let dict_type_def = TypeDef (nowhere, KStar,
                                  (class_to_type_name cname),
                                  dict_t) in
     (BTypeDefinitions (TypeDefs (nowhere, [dict_type_def]))
@@ -766,13 +757,13 @@ and class_member is_constr_class cname tvar env (pos, l, tsch) =
      In explicitly-typed mode, they don't create problems;
      in implicitly-typed mode, they are already catched
      by the inferencer *)
-  
+
   let accessor_name = let (LName str) = l in Name str in
 
   (* Generate code for accessor *)
   let accessor_def = if is_constr_class then begin
 
-    let (pcs, pvs) = 
+    let (pcs, pvs) =
       let f (ClassPredicate (k, _)) =
         (lookup_class pos k env).is_constructor_class
       in
@@ -792,7 +783,7 @@ and class_member is_constr_class cname tvar env (pos, l, tsch) =
     BModule (higher_kinded_poly_function env (tvar :: tcs)
                (ClassPredicate (cname, tvar) :: pcs)
                tvs pvs
-               (accessor_name, ty) 
+               (accessor_name, ty)
                (EModuleAccess (ModulePath [inst_mod_name], accessor_name)))
 
   end else begin
@@ -886,8 +877,6 @@ and instance_definition big_env small_env inst_def =
   let class_def = lookup_class pos cname small_env
   in
 
-  (* TODO: maybe check that the same type variable does not occur twice??
-     Is this enforced in the rest of the code? *)
   let tvar_set = tset_of_list tvars in
 
   let ctx = inst_def.instance_typing_context in
@@ -908,7 +897,7 @@ and instance_definition big_env small_env inst_def =
   let big_env   = List.fold_left (flip bind_dictionary) big_env ctx
   and small_env = List.fold_left (flip bind_dictionary) small_env ctx in
 
-  (* TODO: description *)
+  (* This returns the right env depending on the context *)
   let env_with_free_tvars t =
     TSet.fold bind_type_variable tvar_set
       $
@@ -924,11 +913,9 @@ and instance_definition big_env small_env inst_def =
      (here, we have to implement with functors what a typeclass would automagically
      do for us)
   *)
-  (* CHECK: Is it useful to define it somewhere else, in order to reuse it? *)
   let module OrderedMember =
         struct
           type t = record_binding
-          (* CHECK: this function only checks names; is it ok? *)
           let compare (RecordBinding (n1, _)) (RecordBinding (n2, _)) =
             OrderedLName.compare n1 n2
         end
@@ -953,8 +940,8 @@ and instance_definition big_env small_env inst_def =
     List.fold_left
       (
         fun s x ->
-          if MSet.mem x s then failwith "TODO: multiple definition of instance member"
-            (* TODO: real error handling *)
+          if MSet.mem x s then raise
+            (match x with RecordBinding (name, _) -> MultipleLabels (pos, name))
           else MSet.add x s
       )
       MSet.empty members
@@ -969,17 +956,20 @@ and instance_definition big_env small_env inst_def =
        instantiated at the instance type, to form the pair (member, type) *)
     (* TODO: how to handle free variables after substitution? *)
     let subst (TyScheme (ts, ps, ty)) =
-      TyScheme (ts, ps, 
+      TyScheme (ts, ps,
                 Types.substitute
                   [(class_def.class_parameter, instance_type)]
                   ty)
     in
     let f (RecordBinding (name, _)) =
-      (* TODO: if we got no matching class member, this List.find will raise Not_found *)
-      subst =< proj3_3 =< List.find (((=) name) =< proj2_3) (* #Swag *)
-      (* TODO: handle type schemes *)
-      $ class_def.class_members
-      (* $ class_def.class_members *)
+      try
+        (* If we got no matching class member, this List.find will raise Not_found *)
+        subst =< proj3_3 =< List.find (((=) name) =< proj2_3)
+        (* TODO: handle type schemes *)
+        $ class_def.class_members
+      with
+      | Not_found ->
+        raise (UnboundLabel (pos, name))
     in
     MP.map (id &&& f)  members_set
   in
@@ -990,9 +980,9 @@ and instance_definition big_env small_env inst_def =
      (uniqueness is already enforced) *)
 
   let member_fields =
-    List.map 
+    List.map
       (fun (rec_binding, TyScheme ([], [], cl_member_type)) ->
-        let compiled_rb_code, computed_type = (* CHECK: names? *)
+        let compiled_rb_code, computed_type =
           record_binding (env_with_free_tvars cl_member_type) rec_binding
         in
         (* Check instance member type against corresponding class
@@ -1003,16 +993,14 @@ and instance_definition big_env small_env inst_def =
       $ PSet.elements augmented_members_set
   in
 
-  (* CHECK: can we provide more position information below? (lots of nowhere, dummy_pos, etc) *)
   let dict_record = ERecordCon
     (
       nowhere,
-      Name "WTFITS??",
+      Name "SomeName",
       (* Instantiation of the record type *)
       instantiation nowhere
         $ TypeApplication (List.map (fun x -> TyVar (nowhere, x)) tvars)
-        (* CHECK: If G is nullary, then this is the empty list,
-           so morally it should work (bitch) *)
+        (* If G is nullary, then this is the empty list, so it should work *)
         ,
 
       List.append
@@ -1074,9 +1062,9 @@ and instance_definition big_env small_env inst_def =
     (* We're super permissive with constructor classes;
        integrity checks are such a drag... *)
     (* This part was not required for the project anyway. *)
-    
+
     let member_value_defs =
-      List.map 
+      List.map
         (fun (RecordBinding (LName l, expr), TyScheme (ts, ps, ty)) ->
           (* HUGE HACK: do not elaborate/typecheck the expression *)
           (* Else, we would get unbounded type variables when
@@ -1152,10 +1140,8 @@ and check_correct_context pos env tvar_set ctx =
 
 
 (** Finding parent dictionaries **)
-(* TODO: following commentaries should go to the .mli *)
 (* Following function finds a proof derivation for the target class in the given context *)
 (* The following functions have simple forms thanks to the simplification of the class system *)
-(* TODO: try to add more position information (remove as much nowheres as possible) *)
 and find_parent_dict_proof env target =
   let unwrap = flip Misc.maybe_bind
   and unwrap_list = flip Misc.maybe_bind_list
@@ -1164,7 +1150,6 @@ and find_parent_dict_proof env target =
   let module ClassMap = Map.Make(
     struct
       type t = type_class_name * type_var_name
-      (* TODO: improve ↓ *)
       let compare (x1, y1) (x2, y2) =
         match OrderedTName.compare x1 x2 with
         | 0 ->
@@ -1176,8 +1161,7 @@ and find_parent_dict_proof env target =
 
   (* Map indicating the shortest path to a given superclass *)
   (* This also lists direct superinstances *)
-  (* #yolo, should be done once and for all, not in this function *)
-  (* FIXME: better name *)
+  (* FIXME: should be done once and for all, i.e. not in this function *)
   let superinstances_superclasses =
     (* Fixpoint computation... #swag *)
     let fixpoint f map =
@@ -1199,7 +1183,7 @@ and find_parent_dict_proof env target =
         (fun (cl, var) deriv map ->
           let class_def = lookup_class nowhere cl env in
           (* Look in current class's superclasses and add unkown ones *)
-          List.fold_left (* List.fold_left and Map.fold don't have the same parameter order #swog *)
+          List.fold_left (* Warning: List.fold_left and Map.fold don't have the same parameter order *)
             (fun submap scl ->
               if not $ ClassMap.mem (scl, var) submap then
                 ClassMap.add (scl, var) (InstImplied (scl, cl, deriv)) submap
@@ -1216,7 +1200,6 @@ and find_parent_dict_proof env target =
     (* Add context and start fixpoint computation *)
     fixpoint one_step_superclasses
       $ List.fold_left
-        (* Not able to match the pair with a single id #swog *)
         (fun map -> function (ClassPredicate (cl, var) as cl_pred) ->
           ClassMap.add (cl, var) (InstInCtx cl_pred) map)
         ClassMap.empty
@@ -1227,7 +1210,6 @@ and find_parent_dict_proof env target =
     match target with
     | TyVar (_, v) ->
       begin
-        (* Ocaml's map uses exception #NoKidding *)
         try Some (InstLeafFromCtx (ClassMap.find (cl, v) superinstances_superclasses)) with
         | Not_found -> None
       end
@@ -1236,7 +1218,7 @@ and find_parent_dict_proof env target =
       let cstr_inst = lookup_instance (cl, constr) env
       in
 
-      (* TODO : this match is an unwrap *)
+      (* TODO: this match is an unwrap *)
       begin
         match cstr_inst with
         | None -> None
@@ -1274,7 +1256,6 @@ and find_parent_dict_proof env target =
 
 (* This function uses a proof derivation found by <find_parent_dict_proof> to elaborate
    an expression to access target dictionary *)
-(* TODO: better than index being an option type? *)
 and elaborate_parent_proof_into_expr env =
   let rec f = function
     | InstLeafFromDef (inst_def, instantiation) ->
@@ -1314,13 +1295,13 @@ and elaborate_parent_proof_into_expr env =
       let args = List.map f deps
       in
 
-      let eapp x y z = EApp (x, y, z) (* #SeemsLegit *)
+      let eapp x y z = EApp (x, y, z)
       in
 
       List.fold_left
         (eapp nowhere) var args
 
-  in f (* #yolo *)
+  in f
 
 (* Constructor classes -> modules instead of dictionaries *)
 (* returns a module_expr *)

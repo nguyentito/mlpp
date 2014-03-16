@@ -92,12 +92,15 @@ let handle_error print_variable p =
                    x y)
 
     | E.InvalidClassPredicateInContext (pos, TName x) ->
-      fatal pos (s "  Class predicate '%s' is applied to something\
+      fatal pos (s "  Class predicate `%s' is applied to something\
                       \ other than a variable."
                    x)
 
     | E.IncompatibleLabel (pos, LName x) ->
       fatal pos (s "  The label '%s' is not part of this record type." x)
+
+    | E.UnreachableConstraint (pos, Types.ClassPredicate (TName c, TName x)) ->
+      fatal pos (s "  Unreachable constraint `%s %s'." c x)
 
     | ExternalizeTypes.RecursiveType pos ->
       fatal pos (s "  Type error.")

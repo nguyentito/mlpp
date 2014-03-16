@@ -73,3 +73,6 @@ exception OverlappingInstances of position * tname * tname
 exception InvalidClassPredicateInContext of position * tname
 
 exception IncompatibleLabel of position * lname
+
+exception UnreachableConstraint of position * Types.class_predicate
+

@@ -73,7 +73,9 @@ let as_type_variable (_, v, _) =
    - its type. *)
 type data_constructor = int * variable list * crterm
 
-type class_info = ClassInfo of tname list * variable * (lname * crterm) list
+type class_info =
+    (* ClassInfo of tname list * variable * (lname * variable list * crterm) list *)
+    ClassInfo of tname list * variable * (lname * crterm) list
 type instance_info =  
     InstanceInfo of variable list * Constraint.tclass_constraint * crterm
 

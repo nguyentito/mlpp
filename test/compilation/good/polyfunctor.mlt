@@ -1,0 +1,64 @@
+type 'a maybe = Nothing | Just of 'a
+type 'a list = Cons of 'a * 'a list | Nil
+
+class Functor f { fmap : ['a 'b] ('a -> 'b) -> 'a f -> 'b f }
+
+instance Functor maybe {
+  fmap = fun f -> fun x ->
+    match x with
+      | Nothing -> Nothing
+      | Just (y) -> Just (f y)
+}
+
+let rec list_map = fun f -> fun l -> match l with
+  | Nil -> Nil
+  | Cons (x, xs) -> Cons (f x, list_map f xs)
+
+instance Functor list { fmap = list_map }
+
+type ('a, 'b) pair = Pair of 'a * 'b
+
+class Functor f => Applicative f {
+    monoidal_unit : unit f;
+    monoidal_product : ['a 'b] 'a f -> 'b f -> ('a, 'b) pair f
+}
+
+instance Applicative maybe {
+  monoidal_unit = Just (());
+  monoidal_product = fun x -> fun y ->
+    match Pair (x, y) with
+      | Pair(Just (x'), Just (y')) -> Just (Pair (x', y'))
+      | _ -> Nothing
+}
+
+let rec list_append = fun l1 -> fun l2 -> match l1 with
+  | Nil -> l2
+  | Cons (x, xs) -> Cons (x, list_append xs l2)
+
+let rec list_concat = fun l -> match l with
+  | Nil -> Nil
+  | Cons (x, xs) -> list_append x (list_concat xs)
+
+let cartesian_product = fun l -> fun l' ->
+  list_concat (list_map (fun x -> list_map (fun y -> Pair (x, y)) l') l)
+
+instance Applicative list {
+  monoidal_unit = Cons ((), Nil);
+  monoidal_product = cartesian_product
+}
+
+let pure = fun x -> fmap (fun z -> x) monoidal_unit
+
+let ap = fun f -> fun x ->
+  fmap (fun p -> match p with Pair (f', x') -> f' x')
+       (monoidal_product f x)
+
+let liftA2 = fun f -> fun x -> fun y ->
+  ap (ap (pure f) x) y
+
+let external (plus : int -> int -> int) = "(+)"
+
+let example1 = liftA2 plus (Just (12)) (Just (30))
+
+let example2 = let l = Cons (6, Cons (7, Nil)) in liftA2 plus l l
+

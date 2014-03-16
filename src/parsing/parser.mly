@@ -579,13 +579,15 @@ binding: x=name
   binding $startpos x (Some ty)
 }
 
-
-(* TODO: implement this
-   It seems it is not already done somewhere else
-*)
-mltypescheme: t=mltype
+mltypescheme: ts=type_parameters cs=class_predicates t=mltype
 {
-  TyScheme ([], [], t)
+  if Fts.on () then
+    TyScheme (ts, cs, t)
+  else begin
+    assert (ts = []);
+    assert (cs = []);
+    TyScheme ([], [], t)
+  end
 }
 
 

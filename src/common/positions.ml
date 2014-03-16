@@ -125,6 +125,8 @@ let string_of_pos = function
     ^"line "^(string_of_int p.start_p.pos_lnum)
     ^", characters "^ string_of_characters (characters p.start_p p.end_p)
 
+  | _ -> ""
+
 (* TODO: other cases *)
 
 
